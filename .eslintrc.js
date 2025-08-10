@@ -3,7 +3,7 @@ module.exports = {
   extends: [
     'eslint:recommended',
   ],
-  plugins: ['@typescript-eslint'],
+  plugins: ['@typescript-eslint', 'security'],
   env: {
     node: true,
     es6: true,
@@ -22,6 +22,7 @@ module.exports = {
     '@typescript-eslint/no-var-requires': 'warn',
     '@typescript-eslint/no-empty-function': 'warn',
     'no-undef': 'warn', // Change from error to warning for Jest globals
+    'security/detect-object-injection': 'off', // Temporarily disable for MVP
   },
   ignorePatterns: ['dist/', 'node_modules/', '*.js', '*.d.ts'],
   root: true,

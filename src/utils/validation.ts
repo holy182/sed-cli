@@ -221,6 +221,7 @@ export class InputValidator {
     // Validate file path format
     const pathValidation = this.validateString(filePath, [
       { type: 'string' },
+      // eslint-disable-next-line no-useless-escape
       { type: 'regex', value: /^[a-zA-Z0-9._\/\\-]+$/, message: 'Invalid file path format' }
     ]);
     errors.push(...pathValidation.errors);
@@ -289,6 +290,7 @@ export class InputValidator {
     let sanitized = input.replace(/\0/g, '');
 
     // Remove control characters except newlines and tabs
+    // eslint-disable-next-line no-control-regex
     sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 
     // Trim whitespace

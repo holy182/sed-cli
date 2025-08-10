@@ -18,7 +18,7 @@ export class DiscoveryConfigManager {
         // Database system tables only (very specific)
         '^pg_',           // PostgreSQL system tables
         '^sqlite_',       // SQLite system tables  
-        '^mysql\.',       // MySQL system tables
+        '^mysql\\.',       // MySQL system tables
       ],
       
       excludeSchemaPatterns: [

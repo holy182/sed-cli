@@ -937,98 +937,94 @@ function loadConfig(configPath?: string): any {
 
 // Helper function to prompt for database configuration
 async function promptForDatabaseConfig(): Promise<any> {
-  try {
-    console.log(chalk.blue('Database Configuration'));
-    console.log(chalk.gray('Please provide your database connection details:\n'));
+  console.log(chalk.blue('Database Configuration'));
+  console.log(chalk.gray('Please provide your database connection details:\n'));
 
-    // Interactive database type selection
-    const { dbType } = await inquirer.prompt([
+  // Interactive database type selection
+  const { dbType } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'dbType',
+      message: 'Select your database type:',
+      choices: [
+        { name: 'PostgreSQL (Local/Server)', value: 'postgres' },
+        { name: 'PostgreSQL (Supabase/Cloud)', value: 'postgres-cloud' },
+        { name: 'MySQL (Local/Server)', value: 'mysql' },
+        { name: 'MySQL (PlanetScale/Cloud)', value: 'mysql-cloud' },
+        { name: 'SQLite (Local file)', value: 'sqlite' }
+      ],
+      default: 'postgres'
+    }
+  ]);
+
+  let config: any = { type: dbType === 'postgres-cloud' ? 'postgres' : dbType === 'mysql-cloud' ? 'mysql' : dbType };
+  
+  if (dbType === 'sqlite') {
+    const { database } = await inquirer.prompt([
       {
-        type: 'list',
-        name: 'dbType',
-        message: 'Select your database type:',
-        choices: [
-          { name: 'PostgreSQL (Local/Server)', value: 'postgres' },
-          { name: 'PostgreSQL (Supabase/Cloud)', value: 'postgres-cloud' },
-          { name: 'MySQL (Local/Server)', value: 'mysql' },
-          { name: 'MySQL (PlanetScale/Cloud)', value: 'mysql-cloud' },
-          { name: 'SQLite (Local file)', value: 'sqlite' }
-        ],
-        default: 'postgres'
+        type: 'input',
+        name: 'database',
+        message: 'Database file path:',
+        default: process.env.DB_PATH || './database.db'
       }
     ]);
-
-    let config: any = { type: dbType === 'postgres-cloud' ? 'postgres' : dbType === 'mysql-cloud' ? 'mysql' : dbType };
+    config.database = database;
+  } else if (dbType === 'postgres-cloud' || dbType === 'mysql-cloud') {
+    const { connectionString } = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'connectionString',
+        message: 'Database connection string:',
+        default: dbType === 'postgres-cloud' 
+          ? 'postgresql://postgres:password@host:port/database'
+          : 'mysql://user:password@host:port/database'
+      }
+    ]);
+    config.connectionString = connectionString;
+  } else {
+    const answers = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'host',
+        message: 'Database host:',
+        default: process.env.DB_HOST || 'localhost'
+      },
+      {
+        type: 'input',
+        name: 'port',
+        message: 'Database port:',
+        default: process.env.DB_PORT || (dbType === 'mysql' ? '3306' : '5432')
+      },
+      {
+        type: 'input',
+        name: 'username',
+        message: 'Database username:',
+        default: process.env.DB_USER || (dbType === 'mysql' ? 'root' : 'postgres')
+      },
+      {
+        type: 'password',
+        name: 'password',
+        message: 'Database password:'
+      },
+      {
+        type: 'input',
+        name: 'database',
+        message: 'Database name:',
+        default: process.env.DB_NAME || (dbType === 'mysql' ? 'mysql' : 'postgres')
+      }
+    ]);
     
-    if (dbType === 'sqlite') {
-      const { database } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'database',
-          message: 'Database file path:',
-          default: process.env.DB_PATH || './database.db'
-        }
-      ]);
-      config.database = database;
-    } else if (dbType === 'postgres-cloud' || dbType === 'mysql-cloud') {
-      const { connectionString } = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'connectionString',
-          message: 'Database connection string:',
-          default: dbType === 'postgres-cloud' 
-            ? 'postgresql://postgres:password@host:port/database'
-            : 'mysql://user:password@host:port/database'
-        }
-      ]);
-      config.connectionString = connectionString;
-    } else {
-      const answers = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'host',
-          message: 'Database host:',
-          default: process.env.DB_HOST || 'localhost'
-        },
-        {
-          type: 'input',
-          name: 'port',
-          message: 'Database port:',
-          default: process.env.DB_PORT || (dbType === 'mysql' ? '3306' : '5432')
-        },
-        {
-          type: 'input',
-          name: 'username',
-          message: 'Database username:',
-          default: process.env.DB_USER || (dbType === 'mysql' ? 'root' : 'postgres')
-        },
-        {
-          type: 'password',
-          name: 'password',
-          message: 'Database password:'
-        },
-        {
-          type: 'input',
-          name: 'database',
-          message: 'Database name:',
-          default: process.env.DB_NAME || (dbType === 'mysql' ? 'mysql' : 'postgres')
-        }
-      ]);
-      
-      config = {
-        ...config,
-        host: answers.host,
-        port: parseInt(answers.port),
-        username: answers.username,
-        password: answers.password,
-        database: answers.database
-      };
-    }
-
-    return config;
-  } catch (error) {
-    throw error;
+    config = {
+      ...config,
+      host: answers.host,
+      port: parseInt(answers.port),
+      username: answers.username,
+      password: answers.password,
+      database: answers.database
+    };
   }
+
+  return config;
 }
 
 // Helper functions for sync command

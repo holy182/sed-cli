@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  sed:
+    build: .
+    container_name: sed-semantic-layer
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - SED_LOG_LEVEL=info
+    volumes:
+      - ./data:/app/data
+      - ./sed.config.json:/app/sed.config.json:ro
+    depends_on:
+      - postgres
+    networks:
+      - sed-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "dist/cli.js", "test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Example PostgreSQL database for testing
+  postgres:
+    image: postgres:15-alpine
+    container_name: sed-postgres
+    environment:
+      POSTGRES_DB: sed_demo
+      POSTGRES_USER: sed_user
+      POSTGRES_PASSWORD: sed_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./examples/sample-data.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - sed-network
+    restart: unless-stopped
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: sed-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sed-network
+    restart: unless-stopped
+
+  # Prometheus for monitoring (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sed-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - sed-network
+    restart: unless-stopped
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sed-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - sed-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  sed-network:
+    driver: bridge 

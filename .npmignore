@@ -1,0 +1,60 @@
+# Source files (not needed in package)
+src/
+tsconfig.json
+
+# Development files
+.husky/
+.github/
+docs/
+examples/
+monitoring/
+
+# Development dependencies
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Build artifacts (keep dist/ but exclude source maps)
+dist/*.map
+
+# Docker files (not needed for npm package)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation (keep README and main docs)
+*.md
+!README.md
+!SECURITY.md
+!DEPLOYMENT.md
+!AUTOMATION.md
+!PRICING.md
+!PERFORMANCE_OPTIMIZATION.md
+!CORE_FEATURES_EXAMPLE.md
+!MANUAL_EDITING_EXAMPLE.md
+!AGNOSTIC_ARCHITECTURE.md
+!COMMANDS.md 

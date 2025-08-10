@@ -1,0 +1,18 @@
+{
+  "database": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "database": "sed_test",
+    "user": "postgres",
+    "password": "postgres"
+  },
+  "rules": {
+    "auto_generate": true,
+    "enabled_by_default": true
+  },
+  "semantic": {
+    "cache_enabled": false,
+    "verbose": true
+  }
+}

@@ -1,0 +1,295 @@
+{
+  "rules": [
+    {
+      "id": "rule-001",
+      "name": "PII Protection",
+      "description": "Block access to personally identifiable information",
+      "type": "access_policy",
+      "severity": "block",
+      "scope": "column",
+      "trigger": "before_query",
+      "enabled": true,
+      "priority": 1000,
+      "condition": {
+        "type": "pattern",
+        "pattern": ".*(ssn|password|email|phone|address).*"
+      },
+      "action": {
+        "type": "deny",
+        "message": "Access to PII columns is not allowed"
+      },
+      "tags": ["security", "pii", "compliance"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "createdBy": "admin"
+    },
+    {
+      "id": "rule-002",
+      "name": "Revenue Metric Definition",
+      "description": "Define how revenue should be calculated",
+      "type": "metric_definition",
+      "severity": "warning",
+      "scope": "global",
+      "trigger": "before_query",
+      "enabled": true,
+      "priority": 500,
+      "condition": {
+        "type": "pattern",
+        "pattern": ".*revenue.*"
+      },
+      "action": {
+        "type": "modify",
+        "message": "Using standardized revenue calculation",
+        "code": "SELECT SUM(amount) - SUM(refunds) + SUM(adjustments) as revenue FROM {originalQuery}"
+      },
+      "metric": {
+        "name": "revenue",
+        "description": "Net revenue calculation",
+        "formula": "Gross Amount - Refunds + Adjustments",
+        "unit": "USD",
+        "category": "financial"
+      },
+      "calculation": {
+        "tables": ["orders", "refunds", "adjustments"],
+        "joins": [
+          {
+            "table": "orders",
+            "on": "orders.id = refunds.order_id",
+            "type": "LEFT"
+          }
+        ],
+        "filters": [
+          {
+            "field": "status",
+            "operator": "=",
+            "value": "completed"
+          }
+        ],
+        "aggregations": [
+          {
+            "field": "amount",
+            "function": "SUM",
+            "alias": "gross_amount"
+          }
+        ]
+      },
+      "tags": ["metrics", "financial", "business-logic"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "createdBy": "admin"
+    },
+    {
+      "id": "rule-003",
+      "name": "Required Table Joins",
+      "description": "Ensure proper table joins for user data",
+      "type": "join_rule",
+      "severity": "error",
+      "scope": "table",
+      "trigger": "before_query",
+      "enabled": true,
+      "priority": 800,
+      "condition": {
+        "type": "function",
+        "function": "hasTable",
+        "parameters": {
+          "table": "users"
+        }
+      },
+      "action": {
+        "type": "modify",
+        "message": "Adding required user profile join",
+        "code": "{originalQuery} LEFT JOIN user_profiles ON users.id = user_profiles.user_id"
+      },
+      "join": {
+        "sourceTable": "users",
+        "targetTable": "user_profiles",
+        "sourceColumn": "id",
+        "targetColumn": "user_id",
+        "joinType": "LEFT",
+        "conditions": ["users.active = true"]
+      },
+      "enforcement": {
+        "required": true,
+        "preferred": true,
+        "alternatives": ["user_metadata"]
+      },
+      "tags": ["joins", "data-integrity"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "createdBy": "admin"
+    },
+    {
+      "id": "rule-004",
+      "name": "Business Hours Access",
+      "description": "Restrict access during business hours only",
+      "type": "access_policy",
+      "severity": "warning",
+      "scope": "global",
+      "trigger": "before_query",
+      "enabled": true,
+      "priority": 300,
+      "condition": {
+        "type": "function",
+        "function": "isTimeWindow",
+        "parameters": {
+          "start": "09:00",
+          "end": "17:00"
+        }
+      },
+      "action": {
+        "type": "log",
+        "message": "Query executed during business hours"
+      },
+      "tags": ["access-control", "time-based"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "createdBy": "admin"
+    },
+    {
+      "id": "rule-005",
+      "name": "Data Validation",
+      "description": "Validate email format in user data",
+      "type": "data_validation",
+      "severity": "error",
+      "scope": "column",
+      "trigger": "before_query",
+      "enabled": true,
+      "priority": 600,
+      "condition": {
+        "type": "pattern",
+        "pattern": ".*email.*"
+      },
+      "action": {
+        "type": "modify",
+        "message": "Adding email validation",
+        "code": "{originalQuery} WHERE email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+      },
+      "validation": {
+        "field": "email",
+        "rules": [
+          {
+            "type": "pattern",
+            "value": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$",
+            "message": "Invalid email format"
+          },
+          {
+            "type": "required",
+            "message": "Email is required"
+          }
+        ]
+      },
+      "tags": ["validation", "data-quality"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "createdBy": "admin"
+    },
+    {
+      "id": "rule-006",
+      "name": "Active User Filter",
+      "description": "Always filter for active users unless explicitly requested",
+      "type": "business_logic",
+      "severity": "warning",
+      "scope": "table",
+      "trigger": "before_query",
+      "enabled": true,
+      "priority": 400,
+      "condition": {
+        "type": "composite",
+        "composite": {
+          "operator": "AND",
+          "conditions": [
+            {
+              "type": "function",
+              "function": "hasTable",
+              "parameters": {
+                "table": "users"
+              }
+            },
+            {
+              "type": "pattern",
+              "pattern": "(?!.*status.*=.*inactive).*"
+            }
+          ]
+        }
+      },
+      "action": {
+        "type": "modify",
+        "message": "Adding active user filter",
+        "code": "{originalQuery} WHERE users.status = 'active'"
+      },
+      "tags": ["business-logic", "data-filtering"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "createdBy": "admin"
+    },
+    {
+      "id": "rule-007",
+      "name": "Audit Trail",
+      "description": "Log all queries for audit purposes",
+      "type": "audit_requirement",
+      "severity": "info",
+      "scope": "global",
+      "trigger": "after_query",
+      "enabled": true,
+      "priority": 100,
+      "condition": {
+        "type": "expression",
+        "expression": "true"
+      },
+      "action": {
+        "type": "log",
+        "message": "Query executed: {query} by user: {user.id}"
+      },
+      "tags": ["audit", "compliance", "logging"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00Z",
+      "createdBy": "admin"
+    },
+    {
+      "id": "rule-008",
+      "name": "Rate Limiting",
+      "description": "Prevent excessive query execution",
+      "type": "access_policy",
+      "severity": "block",
+      "scope": "global",
+      "trigger": "before_query",
+      "enabled": true,
+      "priority": 900,
+      "condition": {
+        "type": "expression",
+        "expression": "queryCount > 100"
+      },
+      "action": {
+        "type": "deny",
+        "message": "Rate limit exceeded. Maximum 100 queries per hour."
+      },
+      "tags": ["rate-limiting", "performance"],
+      "version": "1.0.0",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "createdBy": "admin"
+    }
+  ],
+  "metadata": {
+    "description": "Example business rules for SED AI-database governance",
+    "version": "1.0.0",
+    "totalRules": 8,
+    "categories": [
+      "security",
+      "metrics",
+      "joins",
+      "access-control",
+      "validation",
+      "business-logic",
+      "audit",
+      "performance"
+    ]
+  }
+}

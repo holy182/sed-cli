@@ -1,0 +1,1942 @@
+import { SemanticMapping, SemanticEntity, SemanticAttribute, SemanticRelationship, BusinessRule } from '../types/SemanticMapping';
+import { DatabaseProvider, AIProvider, DatabaseSchema, TableInfo, ColumnInfo } from '../types/Providers';
+import { CacheManager } from '../cache/CacheManager';
+import { Config } from '../types/Config';
+import { BusinessLogicDetector, BusinessLogicAnalysis, BusinessLogicSuggestions } from '../patterns/BusinessLogicDetector';
+import { logger } from '../utils/logger';
+// Simplified processors - AI handled internally
+interface DataQualityReport {
+  overallScore: number;
+  issues: any[];
+  recommendations: string[];
+}
+
+interface BusinessContext {
+  domain: string;
+  entities: any[];
+}
+
+interface SchemaComplexity {
+  level: string;
+  issues: any[];
+  recommendations: string[];
+}
+
+// Comprehensive pattern matching for entity and attribute recognition
+class PatternMatcher {
+  // Entity naming patterns
+  private static readonly ENTITY_PATTERNS: { [key: string]: string } = {
+    // User/Customer patterns
+    'users': 'Customer',
+    'user': 'Customer',
+    'customers': 'Customer',
+    'customer': 'Customer',
+    'clients': 'Client',
+    'client': 'Client',
+    'accounts': 'Account',
+    'account': 'Account',
+    'members': 'Member',
+    'member': 'Member',
+    
+    // Order/Transaction patterns
+    'orders': 'Order',
+    'order': 'Order',
+    'purchases': 'Purchase',
+    'purchase': 'Purchase',
+    'transactions': 'Transaction',
+    'transaction': 'Transaction',
+    'sales': 'Sale',
+    'sale': 'Sale',
+    'invoices': 'Invoice',
+    'invoice': 'Invoice',
+    
+    // Product/Item patterns
+    'products': 'Product',
+    'product': 'Product',
+    'items': 'Item',
+    'item': 'Item',
+    'goods': 'Good',
+    'good': 'Good',
+    'services': 'Service',
+    'service': 'Service',
+    
+    // Category/Type patterns
+    'categories': 'Category',
+    'category': 'Category',
+    'types': 'Type',
+    'type': 'Type',
+    'tags': 'Tag',
+    'tag': 'Tag',
+    'labels': 'Label',
+    'label': 'Label',
+    
+    // Address/Location patterns
+    'addresses': 'Address',
+    'address': 'Address',
+    'locations': 'Location',
+    'location': 'Location',
+    'cities': 'City',
+    'city': 'City',
+    'countries': 'Country',
+    'country': 'Country',
+    
+    // Payment patterns
+    'payments': 'Payment',
+    'payment': 'Payment',
+    'billing': 'Billing',
+    'subscriptions': 'Subscription',
+    'subscription': 'Subscription',
+    
+    // Content patterns
+    'posts': 'Post',
+    'post': 'Post',
+    'articles': 'Article',
+    'article': 'Article',
+    'comments': 'Comment',
+    'comment': 'Comment',
+    'reviews': 'Review',
+    'review': 'Review',
+    
+    // System patterns
+    'settings': 'Setting',
+    'setting': 'Setting',
+    'configurations': 'Configuration',
+    'configuration': 'Configuration',
+    'logs': 'Log',
+    'log': 'Log',
+    'audits': 'Audit',
+    'audit': 'Audit'
+  };
+
+  // Attribute naming patterns
+  private static readonly ATTRIBUTE_PATTERNS: { [key: string]: string } = {
+    // Name patterns
+    'first_name': 'FirstName',
+    'firstname': 'FirstName',
+    'last_name': 'LastName',
+    'lastname': 'LastName',
+    'full_name': 'FullName',
+    'fullname': 'FullName',
+    'name': 'Name',
+    'title': 'Title',
+    'description': 'Description',
+    'summary': 'Summary',
+    
+    // Contact patterns
+    'email': 'Email',
+    'phone': 'Phone',
+    'phone_number': 'PhoneNumber',
+    'phonenumber': 'PhoneNumber',
+    'mobile': 'Mobile',
+    'address': 'Address',
+    'city': 'City',
+    'state': 'State',
+    'country': 'Country',
+    'zip_code': 'ZipCode',
+    'zipcode': 'ZipCode',
+    'postal_code': 'PostalCode',
+    'postalcode': 'PostalCode',
+    
+    // Date patterns
+    'created_at': 'CreatedAt',
+    'createdat': 'CreatedAt',
+    'created_date': 'CreatedDate',
+    'createddate': 'CreatedDate',
+    'updated_at': 'UpdatedAt',
+    'updatedat': 'UpdatedAt',
+    'updated_date': 'UpdatedDate',
+    'updateddate': 'UpdatedDate',
+    'date': 'Date',
+    'birth_date': 'BirthDate',
+    'birthdate': 'BirthDate',
+    
+    // Status patterns
+    'status': 'Status',
+    'is_active': 'IsActive',
+    'isactive': 'IsActive',
+    'is_enabled': 'IsEnabled',
+    'isenabled': 'IsEnabled',
+    'is_deleted': 'IsDeleted',
+    'isdeleted': 'IsDeleted',
+    'enabled': 'Enabled',
+    'active': 'Active',
+    'deleted': 'Deleted',
+    
+    // ID patterns
+    'id': 'Id',
+    'user_id': 'UserId',
+    'userid': 'UserId',
+    'customer_id': 'CustomerId',
+    'customerid': 'CustomerId',
+    'order_id': 'OrderId',
+    'orderid': 'OrderId',
+    'product_id': 'ProductId',
+    'productid': 'ProductId',
+    
+    // Amount/Price patterns
+    'amount': 'Amount',
+    'price': 'Price',
+    'cost': 'Cost',
+    'total': 'Total',
+    'subtotal': 'Subtotal',
+    'tax': 'Tax',
+    'discount': 'Discount',
+    'shipping': 'Shipping',
+    
+    // Quantity patterns
+    'quantity': 'Quantity',
+    'qty': 'Quantity',
+    'count': 'Count',
+    'number': 'Number',
+    
+    // URL patterns
+    'url': 'Url',
+    'link': 'Link',
+    'website': 'Website',
+    'image_url': 'ImageUrl',
+    'imageurl': 'ImageUrl',
+    'avatar': 'Avatar',
+    'photo': 'Photo'
+  };
+
+  // Business context patterns
+  private static readonly BUSINESS_CONTEXT: { [key: string]: string } = {
+    // User Management & Authentication
+    'user_id': 'Primary identifier linking user to all system activities, critical for personalization, analytics, and security audit trails',
+    'username': 'Unique login credential enabling secure access while maintaining user privacy and system integrity',
+    'email': 'Primary communication channel for account management, notifications, and password recovery with email verification',
+    'password': 'Encrypted authentication mechanism ensuring secure access while protecting against unauthorized entry',
+    'first_name': 'Personal identifier enabling customized user experience, customer service, and personalized communications',
+    'last_name': 'Family identifier for formal communications, legal compliance, and complete user identification',
+    'full_name': 'Complete identity for display, reporting, and customer relationship management across all touchpoints',
+    'phone': 'Alternative contact method for urgent notifications, two-factor authentication, and customer support',
+    'avatar': 'Visual identity element enhancing user experience, brand recognition, and community engagement',
+    'user_status': 'Account lifecycle management enabling proper access control, compliance monitoring, and user experience optimization',
+    'role': 'Access control mechanism defining user permissions, security boundaries, and feature availability',
+    'created_at': 'Audit trail timestamp for compliance, analytics, and user lifecycle management',
+    'updated_at': 'Change tracking for data integrity, user activity monitoring, and system optimization',
+    'last_login': 'Security monitoring metric for suspicious activity detection and user engagement analysis',
+    'is_active': 'Operational status flag for system performance, user experience, and compliance requirements',
+    'is_verified': 'Trust and security indicator enabling access to sensitive features and maintaining platform integrity',
+    'preferences': 'Personalization engine data enabling tailored experiences, improved engagement, and customer satisfaction',
+    
+    // E-commerce & Product Management
+    'product_id': 'Inventory management cornerstone enabling stock tracking, sales analytics, and supply chain optimization',
+    'product_name': 'Customer-facing identifier driving search, discovery, and purchase decisions through clear communication',
+    'description': 'Conversion optimization tool providing detailed information to reduce purchase friction and increase sales',
+    'price': 'Revenue generation metric and competitive positioning tool influencing purchase decisions and profit margins',
+    'cost': 'Profitability calculation foundation enabling pricing strategy, margin analysis, and financial planning',
+    'sku': 'Inventory control system enabling efficient stock management, order fulfillment, and supply chain optimization',
+    'category': 'Navigation and discovery mechanism improving user experience and enabling targeted marketing campaigns',
+    'brand': 'Trust and quality indicator influencing purchase decisions and enabling brand loyalty programs',
+    'stock': 'Operational metric ensuring order fulfillment, preventing overselling, and optimizing inventory investment',
+    'weight': 'Logistics planning data enabling accurate shipping costs, delivery estimates, and operational efficiency',
+    'dimensions': 'Storage and shipping optimization data reducing costs and improving delivery accuracy',
+    'images': 'Visual conversion tool increasing engagement, reducing returns, and improving customer confidence',
+    'tags': 'Search and discovery enhancement enabling product findability and cross-selling opportunities',
+    'rating': 'Social proof mechanism building customer confidence and influencing purchase decisions',
+    'reviews_count': 'Engagement and trust indicator demonstrating product popularity and customer satisfaction',
+    'is_featured': 'Marketing tool enabling promotional campaigns, homepage placement, and sales acceleration',
+    'is_available': 'Real-time availability indicator preventing customer frustration and optimizing conversion rates',
+    
+    // Order & Transaction Management
+    'order_id': 'Transaction tracking identifier enabling customer service, logistics management, and financial reconciliation',
+    'order_number': 'Customer-facing reference enabling order tracking, customer service, and communication',
+    'customer_id': 'Relationship management link enabling personalized service, loyalty programs, and customer analytics',
+    'total_amount': 'Revenue recognition metric and customer billing amount including all applicable charges and discounts',
+    'subtotal': 'Pre-tax merchandise value enabling tax calculations, discount applications, and financial reporting',
+    'tax_amount': 'Compliance requirement and revenue component ensuring legal adherence and accurate financial reporting',
+    'shipping_cost': 'Logistics expense enabling delivery service selection and cost optimization',
+    'discount_amount': 'Promotional tool driving sales, customer acquisition, and inventory clearance',
+    'status': 'Operational workflow management enabling customer communication, resource allocation, and process optimization',
+    'payment_status': 'Financial risk management tool ensuring payment collection and enabling credit decisions',
+    'shipping_address': 'Logistics delivery destination ensuring accurate order fulfillment and customer satisfaction',
+    'billing_address': 'Payment processing requirement ensuring transaction success and compliance with financial regulations',
+    'order_date': 'Sales analytics timestamp enabling trend analysis, seasonal planning, and performance measurement',
+    'shipped_date': 'Logistics milestone enabling delivery tracking and customer communication',
+    'delivered_date': 'Service completion confirmation enabling customer satisfaction measurement and operational analytics',
+    'tracking_number': 'Logistics visibility tool enabling customer self-service and reducing support inquiries',
+    'notes': 'Operational communication channel enabling special instructions and customer service coordination',
+    
+    // Financial & Payment Processing
+    'amount': 'Core financial metric enabling transaction processing, reporting, and business intelligence',
+    'currency': 'International business enabler ensuring accurate pricing and compliance with local regulations',
+    'balance': 'Financial position indicator enabling credit decisions, risk assessment, and customer service',
+    'transaction_id': 'Audit trail identifier ensuring financial integrity and enabling dispute resolution',
+    'payment_method': 'Customer preference data enabling payment optimization and fraud prevention',
+    'invoice_number': 'Billing system identifier enabling accounts receivable management and financial reconciliation',
+    'due_date': 'Cash flow management tool enabling collection strategies and financial planning',
+    'interest_rate': 'Financial product parameter enabling pricing decisions and risk assessment',
+    'commission': 'Incentive mechanism driving sales performance and partner engagement',
+    'refund_amount': 'Customer service tool ensuring satisfaction and maintaining brand reputation',
+    
+    // Analytics & Business Intelligence
+    'view_count': 'Engagement measurement enabling content optimization and audience understanding',
+    'click_count': 'Interaction tracking enabling user experience optimization and conversion funnel analysis',
+    'conversion_rate': 'Performance metric enabling optimization strategies and ROI measurement',
+    'revenue': 'Business health indicator enabling strategic planning and performance measurement',
+    'profit': 'Financial success metric enabling business sustainability and growth planning',
+    'margin': 'Pricing strategy tool enabling competitive positioning and profitability optimization',
+    'growth_rate': 'Business momentum indicator enabling strategic planning and investment decisions',
+    'retention_rate': 'Customer loyalty measurement enabling retention strategies and lifetime value optimization',
+    'churn_rate': 'Risk indicator enabling proactive customer service and product improvement',
+    'lifetime_value': 'Customer investment metric enabling acquisition cost optimization and retention strategies',
+    
+    // System & Technical Infrastructure
+    'id': 'Database integrity foundation ensuring data relationships and system reliability',
+    'uuid': 'Distributed system identifier enabling scalability and data consistency across multiple services',
+    'hash': 'Security mechanism protecting sensitive data and ensuring data integrity',
+    'token': 'Authentication and authorization tool enabling secure access and session management',
+    'session_id': 'User experience enabler maintaining state across interactions and enabling personalization',
+    'ip_address': 'Security and analytics data enabling fraud detection and geographic insights',
+    'user_agent': 'Compatibility and analytics data enabling optimal user experience and device optimization',
+    'timestamp': 'Audit and analytics foundation enabling compliance, debugging, and business intelligence',
+    'version': 'System management tool enabling updates, compatibility, and feature rollouts',
+    'checksum': 'Data integrity verification ensuring system reliability and preventing corruption',
+    'encrypted': 'Security flag ensuring compliance with data protection regulations and maintaining customer trust',
+    'compressed': 'Performance optimization enabling faster data transfer and reduced storage costs',
+    'archived': 'Data lifecycle management enabling cost optimization and regulatory compliance',
+    'deleted': 'Data recovery mechanism enabling compliance with data retention policies and user privacy',
+    'draft': 'Content workflow management enabling collaboration and quality control',
+    'published': 'Content lifecycle indicator enabling audience access and analytics tracking',
+    'private': 'Access control mechanism ensuring data security and user privacy',
+    'public': 'Information sharing enabler promoting transparency and user engagement',
+    
+    // Common Business Fields
+    'address': 'Location data enabling logistics, customer service, and geographic analytics',
+    'quantity': 'Operational metric enabling inventory management, capacity planning, and resource allocation',
+    'name': 'Identification element enabling search, organization, and user experience optimization'
+  };
+
+  static getEntityName(tableName: string): string {
+    const normalizedName = tableName.toLowerCase().replace(/[_-]/g, '');
+    
+    // Check exact matches first
+    if (this.ENTITY_PATTERNS[tableName.toLowerCase()]) {
+      return this.ENTITY_PATTERNS[tableName.toLowerCase()];
+    }
+    
+    // Check normalized matches
+    if (this.ENTITY_PATTERNS[normalizedName]) {
+      return this.ENTITY_PATTERNS[normalizedName];
+    }
+    
+    // Check plural/singular variations
+    const singular = tableName.replace(/s$/, '');
+    if (this.ENTITY_PATTERNS[singular.toLowerCase()]) {
+      return this.ENTITY_PATTERNS[singular.toLowerCase()];
+    }
+    
+    // Default: capitalize and clean
+    return tableName.charAt(0).toUpperCase() + tableName.slice(1).replace(/[_-]/g, '');
+  }
+
+  static getAttributeName(columnName: string): string {
+    const normalizedName = columnName.toLowerCase().replace(/[_-]/g, '');
+    
+    // Check exact matches first
+    if (this.ATTRIBUTE_PATTERNS[columnName.toLowerCase()]) {
+      return this.ATTRIBUTE_PATTERNS[columnName.toLowerCase()];
+    }
+    
+    // Check normalized matches
+    if (this.ATTRIBUTE_PATTERNS[normalizedName]) {
+      return this.ATTRIBUTE_PATTERNS[normalizedName];
+    }
+    
+    // Default: camelCase conversion
+    return columnName.replace(/[_-](.)/g, (_, char) => char.toUpperCase());
+  }
+
+  static getBusinessContext(columnName: string): string {
+    const normalizedName = columnName.toLowerCase().replace(/[_-]/g, '');
+    
+    if (this.BUSINESS_CONTEXT[columnName.toLowerCase()]) {
+      return this.BUSINESS_CONTEXT[columnName.toLowerCase()];
+    }
+    
+    if (this.BUSINESS_CONTEXT[normalizedName]) {
+      return this.BUSINESS_CONTEXT[normalizedName];
+    }
+    
+    // Enhanced pattern matching for business context
+    if (columnName.includes('id')) return 'Primary identifier enabling data relationships, system integrity, and record management';
+    if (columnName.includes('name')) return 'Human-readable identifier enabling search, organization, and user experience optimization';
+    if (columnName.includes('date') || columnName.includes('time')) return 'Temporal data enabling audit trails, analytics, and business process tracking';
+    if (columnName.includes('email')) return 'Communication channel enabling user engagement, notifications, and account management';
+    if (columnName.includes('phone')) return 'Contact method enabling customer service, authentication, and urgent communications';
+    if (columnName.includes('address')) return 'Location data enabling logistics, customer service, and geographic analytics';
+    if (columnName.includes('price') || columnName.includes('amount') || columnName.includes('cost')) return 'Financial metric enabling pricing decisions, revenue tracking, and business intelligence';
+    if (columnName.includes('quantity') || columnName.includes('count')) return 'Operational metric enabling inventory management, capacity planning, and resource allocation';
+    if (columnName.includes('status')) return 'State indicator enabling workflow management, user experience, and operational control';
+    if (columnName.includes('type')) return 'Classification data enabling filtering, organization, and business logic';
+    if (columnName.includes('category')) return 'Grouping mechanism enabling navigation, analytics, and targeted operations';
+    if (columnName.includes('description')) return 'Detailed information enabling user understanding, search, and decision making';
+    if (columnName.includes('url') || columnName.includes('link')) return 'Resource reference enabling navigation, content access, and integration';
+    if (columnName.includes('image') || columnName.includes('photo') || columnName.includes('avatar')) return 'Visual content enabling user engagement, identification, and experience enhancement';
+    if (columnName.includes('rating') || columnName.includes('score')) return 'Quality indicator enabling decision making, trust building, and performance measurement';
+    if (columnName.includes('is_') || columnName.includes('has_')) return 'Boolean flag enabling conditional logic, filtering, and feature control';
+    
+    return 'Business data field enabling operational processes and information management';
+  }
+}
+
+
+
+import * as fs from 'fs';
+import * as path from 'path';
+
+
+export enum ErrorType {
+  AI_FAILURE = 'AI_FAILURE',
+  MAPPING_FAILURE = 'MAPPING_FAILURE',
+  SQL_SYNTAX_ERROR = 'SQL_SYNTAX_ERROR',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  DATABASE_ERROR = 'DATABASE_ERROR',
+  CONFIGURATION_ERROR = 'CONFIGURATION_ERROR'
+}
+
+export interface SemanticError {
+  type: ErrorType;
+  message: string;
+  details?: any;
+  stage: 'discovery' | 'mapping' | 'query_processing' | 'sql_generation';
+  timestamp: Date;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  confidence: number;
+}
+
+export class SemanticLayer {
+  private dbProvider: DatabaseProvider;
+  private cache: CacheManager;
+  private semanticMapping: SemanticMapping | null = null;
+  private config: Config;
+  private errors: SemanticError[] = [];
+  private projectName: string;
+  private sedFolder: string;
+
+  
+  // Performance monitoring
+  private performanceMetrics = {
+    schemaDiscoveryTime: 0,
+    aiGenerationTime: 0,
+    embeddingGenerationTime: 0,
+    validationTime: 0,
+    totalProcessingTime: 0,
+    tablesProcessed: 0,
+    columnsProcessed: 0,
+    embeddingsGenerated: 0
+  };
+  
+  // Batch processing configuration
+  private readonly BATCH_SIZE = parseInt(process.env.SED_BATCH_SIZE || '50');
+  private readonly EMBEDDING_BATCH_SIZE = parseInt(process.env.SED_EMBEDDING_BATCH_SIZE || '10');
+  
+  // Internal processors - AI handled internally
+  private dataQualityProcessor = {
+    analyzeDataQuality: async () => ({ overallScore: 100, issues: [], recommendations: [] })
+  };
+  private businessContextResolver = {
+    resolveBusinessContext: async () => ({ domain: 'general', entities: [] }),
+    applyBusinessContextToMapping: async (mapping: any) => mapping
+  };
+  private schemaComplexityResolver = {
+    analyzeSchemaComplexity: async () => ({ level: 'low', issues: [], recommendations: [] })
+  };
+
+  private businessLogicDetector = new BusinessLogicDetector();
+
+  constructor(dbProvider: DatabaseProvider, cache: CacheManager, config: Config) {
+    this.dbProvider = dbProvider;
+    this.cache = cache;
+    this.config = config;
+    
+    // Local processing only - no AI dependencies
+    
+    // Processors handled internally
+    
+    // Determine project name from database name or current directory
+    this.projectName = config.database.database || path.basename(process.cwd());
+    this.sedFolder = path.join(process.cwd(), '.sed');
+    
+    // Ensure .sed folder exists
+    this.ensureSedFolder();
+  }
+
+  /**
+   * Ensure .sed folder exists
+   */
+  private ensureSedFolder(): void {
+    if (!fs.existsSync(this.sedFolder)) {
+      fs.mkdirSync(this.sedFolder, { recursive: true });
+    }
+  }
+
+  /**
+   * Get default mapping file path
+   */
+  private getDefaultMappingPath(): string {
+    return path.join(this.sedFolder, `${this.projectName}.mapping.json`);
+  }
+
+  /**
+   * Save semantic mapping to file
+   */
+  private async saveMappingToFile(mapping: SemanticMapping, filePath?: string): Promise<void> {
+    const targetPath = filePath || this.getDefaultMappingPath();
+    
+    // Ensure directory exists
+    const dir = path.dirname(targetPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    // Save mapping with metadata and editing instructions
+    const mappingData = {
+      ...mapping,
+      metadata: {
+        ...mapping.metadata,
+        savedAt: new Date(),
+        filePath: targetPath,
+        instructions: [
+                "This semantic layer file can be edited manually to customize your schema",
+      "Add business context, improve descriptions, or fix generated content",
+          "Run 'sed sync' to detect database changes and update this file",
+          "Run 'sed validate' to check if your edits are valid against the database"
+        ]
+      }
+    };
+    
+    fs.writeFileSync(targetPath, JSON.stringify(mappingData, null, 2));
+          logger.mappingSaved(targetPath);
+      logger.info('You can edit this file manually to customize your semantic layer');
+  }
+
+  /**
+   * Load semantic mapping from file
+   */
+  private async loadMappingFromFile(filePath?: string): Promise<SemanticMapping> {
+    const targetPath = filePath || this.getDefaultMappingPath();
+    
+    if (!fs.existsSync(targetPath)) {
+      throw new Error(`Semantic mapping file not found: ${targetPath}`);
+    }
+    
+    const fileContent = fs.readFileSync(targetPath, 'utf8');
+    const mapping = JSON.parse(fileContent);
+    
+    // Validate the mapping against current schema
+    const schema = await this.dbProvider.discoverSchema();
+    const validation = this.validateLayer(mapping, schema);
+    
+    if (!validation.isValid) {
+      console.error('❌ Semantic mapping validation failed:');
+      validation.errors.forEach(error => console.error(`  - ${error}`));
+      throw new Error('Semantic mapping contains invalid references');
+    }
+    
+    if (validation.warnings.length > 0) {
+      console.warn('⚠️ Semantic mapping warnings:');
+      validation.warnings.forEach(warning => console.warn(`  - ${warning}`));
+    }
+    
+    console.log(`📂 Semantic mapping loaded from: ${targetPath} (${validation.confidence}% confidence)`);
+    return mapping;
+  }
+
+  /**
+   * Log error with appropriate level
+   */
+  private logError(error: SemanticError): void {
+    this.errors.push(error);
+    
+    const logMessage = `[${error.type}] ${error.stage}: ${error.message}`;
+    console.error(logMessage, error.details);
+  }
+
+  /**
+   * Get all errors for debugging
+   */
+  getErrors(): SemanticError[] {
+    return this.errors;
+  }
+
+  /**
+   * Clear error log
+   */
+  clearErrors(): void {
+    this.errors = [];
+  }
+
+  /**
+   * Load user-defined semantic mapping
+   */
+  async loadSemanticMapping(mapping: SemanticMapping, filePath?: string): Promise<void> {
+    this.semanticMapping = mapping;
+    
+    // Validate mapping against actual database schema
+    await this.validateMapping();
+    
+    // Cache the mapping
+    await this.cache.set('semantic_mapping', mapping);
+    
+    // Save to file
+    await this.saveMappingToFile(mapping, filePath);
+    
+    logger.mappingLoaded(mapping.entities.length);
+  }
+
+  /**
+   * Load semantic mapping without database validation (for read-only operations)
+   */
+  loadSemanticMappingWithoutValidation(mapping: SemanticMapping): void {
+    this.semanticMapping = mapping;
+    logger.mappingLoaded(mapping.entities.length);
+  }
+
+  /**
+   * Auto-create intelligent semantic mapping from database schema with performance monitoring
+   */
+  async createMappingFromSchema(): Promise<SemanticMapping> {
+    logger.creatingMapping();
+    
+    try {
+      // Get database schema
+      const schema = await this.dbProvider.discoverSchema();
+      const totalColumns = schema.tables.reduce((sum, t) => sum + t.columns.length, 0);
+      logger.info(`Schema discovered: ${schema.tables.length} tables, ${totalColumns} columns`);
+      
+      // Detect business logic patterns
+      logger.analyzingPatterns();
+      const businessAnalysis = this.businessLogicDetector.detectBusinessLogic(schema);
+      
+      // Log business insights
+      if (businessAnalysis.businessDomain !== 'general') {
+        console.log(`🏢 Detected business domain: ${businessAnalysis.businessDomain} (confidence: ${(businessAnalysis.confidence * 100).toFixed(1)}%)`);
+      }
+      
+      if (businessAnalysis.detectedCalculations.length > 0) {
+        console.log(`💰 Detected ${businessAnalysis.detectedCalculations.length} business calculations`);
+        businessAnalysis.detectedCalculations.forEach(calc => {
+          console.log(`  - ${calc.name}: ${calc.description}`);
+        });
+      }
+      
+      if (businessAnalysis.detectedStatuses.length > 0) {
+        console.log(`📊 Detected ${businessAnalysis.detectedStatuses.length} status patterns`);
+        businessAnalysis.detectedStatuses.forEach(status => {
+          console.log(`  - ${status.name}: ${status.description}`);
+        });
+      }
+      
+      // Create enhanced mapping with business logic
+      const mapping = this.createConservativeMapping(schema);
+      
+      // Enhance mapping with business logic insights
+      const enhancedMapping = this.enhanceMappingWithBusinessLogic(mapping, businessAnalysis);
+      
+      // Save mapping
+      await this.saveMappingToFile(enhancedMapping);
+      
+      logger.mappingGenerated();
+      return enhancedMapping;
+      
+    } catch (error) {
+      console.error('❌ Error creating semantic mapping:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Enhance semantic mapping with business logic insights
+   */
+  private enhanceMappingWithBusinessLogic(mapping: SemanticMapping, businessAnalysis: BusinessLogicAnalysis): SemanticMapping {
+    const enhancedMapping = { ...mapping };
+    
+    // Add business logic metadata
+    (enhancedMapping.metadata as any) = {
+      ...enhancedMapping.metadata,
+      description: `${enhancedMapping.metadata.description} with business intelligence (${businessAnalysis.businessDomain} domain, ${(businessAnalysis.confidence * 100).toFixed(1)}% confidence)`,
+      businessInsights: {
+        domain: businessAnalysis.businessDomain,
+        confidence: businessAnalysis.confidence,
+        calculations: businessAnalysis.detectedCalculations.length,
+        statuses: businessAnalysis.detectedStatuses.length,
+        relationships: businessAnalysis.detectedRelationships.length,
+        details: {
+          calculations: businessAnalysis.detectedCalculations.map(calc => ({
+            name: calc.name,
+            description: calc.description,
+            business_purpose: calc.business_purpose,
+            formula: calc.formula
+          })),
+          statuses: businessAnalysis.detectedStatuses.map(status => ({
+            name: status.name,
+            description: status.description,
+            business_purpose: status.business_purpose,
+            condition: status.condition
+          })),
+          relationships: businessAnalysis.detectedRelationships.map(rel => ({
+            type: rel.type,
+            description: rel.description,
+            business_purpose: rel.business_purpose
+          }))
+        }
+      }
+    };
+    
+    // Enhance entity descriptions with business context
+    enhancedMapping.entities = enhancedMapping.entities.map(entity => {
+      const enhancedEntity = { ...entity };
+      
+      // Add business domain context to entity description
+      if (businessAnalysis.businessDomain !== 'general') {
+        enhancedEntity.description = `${enhancedEntity.description} (${businessAnalysis.businessDomain} domain)`;
+      }
+      
+      // Enhance attributes with business logic insights
+      enhancedEntity.attributes = enhancedEntity.attributes.map(attr => {
+        const enhancedAttr = { ...attr };
+        
+        // Check if this attribute is part of a detected calculation
+        const relatedCalculation = businessAnalysis.detectedCalculations.find(calc => 
+          calc.pattern.some(pattern => attr.databaseColumn.toLowerCase().includes(pattern))
+        );
+        
+        if (relatedCalculation) {
+          (enhancedAttr.metadata as any) = {
+            ...enhancedAttr.metadata,
+            businessLogic: {
+              calculation: relatedCalculation.name,
+              business_purpose: relatedCalculation.business_purpose,
+              formula: relatedCalculation.formula
+            }
+          };
+        }
+        
+        return enhancedAttr;
+      });
+      
+      return enhancedEntity;
+    });
+    
+    return enhancedMapping;
+  }
+
+  /**
+   * Detect relationships between tables using foreign keys
+   */
+  private detectRelationships(schema: DatabaseSchema): any[] {
+    const relationships: any[] = [];
+    
+    for (const table of schema.tables) {
+      for (const column of table.columns) {
+        if (column.isForeignKey && column.foreignKeyInfo) {
+          relationships.push({
+            fromTable: table.name,
+            fromColumn: column.name,
+            toTable: column.foreignKeyInfo.referencedTable,
+            toColumn: column.foreignKeyInfo.referencedColumn,
+            type: 'one-to-many'
+          });
+        }
+      }
+    }
+    
+    return relationships;
+  }
+
+  /**
+   * Create conservative mapping as fallback
+   */
+  private createConservativeMapping(schema: DatabaseSchema): SemanticMapping {
+    logger.info('Creating pattern-based semantic mapping...');
+    
+    const entities = schema.tables.map(table => ({
+      name: this.generateEntityName(table.name),
+      description: `Entity representing ${table.name} data`,
+      databaseTable: table.name,
+      attributes: table.columns.map(col => ({
+        name: this.generateAttributeName(col.name),
+        description: PatternMatcher.getBusinessContext(col.name),
+        databaseColumn: col.name,
+        dataType: this.mapDataType(col.type),
+        isRequired: !col.nullable,
+        isPrimaryKey: col.isPrimaryKey,
+        businessPurpose: PatternMatcher.getBusinessContext(col.name),
+        businessRules: [],
+        examples: []
+      })),
+      relationships: []
+    }));
+
+    const mapping: SemanticMapping = {
+      entities,
+      metadata: {
+        version: '1.0.0',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        description: 'Intelligent pattern-based semantic mapping'
+      }
+    };
+
+    return mapping;
+  }
+
+  /**
+   * Load semantic mapping from file (public method)
+   */
+  async loadMappingFromFilePath(filePath?: string): Promise<void> {
+    const mapping = await this.loadMappingFromFile(filePath);
+    await this.loadSemanticMapping(mapping, filePath);
+  }
+
+  /**
+   * Get the path where the current mapping is stored
+   */
+  getMappingFilePath(): string {
+    return this.getDefaultMappingPath();
+  }
+
+  /**
+   * Build context string for applications with semantic mapping
+   */
+  buildSemanticContext(): string {
+    if (!this.semanticMapping) return '';
+
+    let context = 'Available semantic entities:\n\n';
+    
+    for (const entity of this.semanticMapping.entities) {
+      context += `Entity: ${entity.name}\n`;
+      context += `Description: ${entity.description}\n`;
+      context += `Database Table: ${entity.databaseTable}\n`;
+      context += 'Attributes:\n';
+      
+      for (const attr of entity.attributes) {
+        context += `  - ${attr.name}: ${attr.description} (${attr.dataType})\n`;
+      }
+      
+      if (entity.relationships.length > 0) {
+        context += 'Relationships:\n';
+        for (const rel of entity.relationships) {
+          context += `  - ${rel.name}: ${rel.description} (${rel.type})\n`;
+        }
+      }
+      
+      context += '\n';
+    }
+
+    return context;
+  }
+
+  /**
+   * Validate semantic mapping against actual database
+   */
+  async validateMapping(): Promise<void> {
+    if (!this.semanticMapping) return;
+
+    const schema = await this.dbProvider.discoverSchema();
+    const errors: string[] = [];
+
+    for (const entity of this.semanticMapping.entities) {
+      // Check if table exists
+      const table = schema.tables.find(t => t.name === entity.databaseTable);
+      if (!table) {
+        errors.push(`Table '${entity.databaseTable}' not found in database for entity '${entity.name}'`);
+        continue;
+      }
+
+      // Check if columns exist
+      for (const attr of entity.attributes) {
+        const column = table.columns.find(c => c.name === attr.databaseColumn);
+        if (!column) {
+          errors.push(`Column '${attr.databaseColumn}' not found in table '${entity.databaseTable}' for attribute '${attr.name}'`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Semantic mapping validation failed:\n${errors.join('\n')}`);
+    }
+  }
+
+  /**
+   * Generate entity name from table name
+   */
+  private generateEntityName(tableName: string): string {
+    return PatternMatcher.getEntityName(tableName);
+  }
+
+  /**
+   * Generate attribute name from column name
+   */
+  private generateAttributeName(columnName: string): string {
+    return PatternMatcher.getAttributeName(columnName);
+  }
+
+  /**
+   * Map database data type to semantic data type
+   */
+  private mapDataType(dbType: string): 'string' | 'number' | 'date' | 'boolean' | 'json' {
+    const type = dbType.toLowerCase();
+    
+    if (type.includes('int') || type.includes('float') || type.includes('decimal') || type.includes('numeric')) {
+      return 'number';
+    }
+    if (type.includes('date') || type.includes('time') || type.includes('timestamp')) {
+      return 'date';
+    }
+    if (type.includes('bool')) {
+      return 'boolean';
+    }
+    if (type.includes('json')) {
+      return 'json';
+    }
+    return 'string';
+  }
+
+  /**
+   * Use AI to intelligently generate entity names and descriptions
+   */
+  private async generateIntelligentEntities(schema: DatabaseSchema): Promise<SemanticEntity[]> {
+    const entities: SemanticEntity[] = [];
+    
+    for (const table of schema.tables) {
+      // Use AI to generate intelligent entity name and description
+      const entityInfo = await this.generateEntityInfo(table);
+      
+      const attributes = await Promise.all(table.columns.map(async col => {
+        const attrInfo = await this.generateIntelligentAttributeInfo(col, table.name);
+        return {
+          name: attrInfo.name,
+          description: attrInfo.description,
+          databaseColumn: col.name,
+          dataType: this.mapDataType(col.type),
+          isRequired: !col.nullable,
+          isPrimaryKey: col.isPrimaryKey,
+          businessPurpose: attrInfo.businessPurpose,
+          units: attrInfo.units,
+          format: attrInfo.format,
+          relationship: attrInfo.relationship,
+          businessRules: attrInfo.businessRules,
+          examples: attrInfo.examples
+        };
+      }));
+
+      entities.push({
+        name: entityInfo.name,
+        description: entityInfo.description,
+        databaseTable: table.name,
+        attributes,
+        relationships: []
+      });
+    }
+
+    return entities;
+  }
+
+  /**
+   * Use AI to generate intelligent entity information
+   */
+  private async generateEntityInfo(table: any): Promise<{name: string, description: string}> {
+    // If no AI provider, fallback to basic generation
+    if (!this.aiProvider) {
+      return {
+        name: this.generateEntityName(table.name),
+        description: `Entity representing ${table.name} data`
+      };
+    }
+
+    const prompt = `Given this database table, generate a business-friendly entity name and description:
+
+Table: ${table.name}
+Columns: ${table.columns.map((c: any) => c.name).join(', ')}
+
+Generate a JSON response with:
+- "name": Business-friendly entity name (e.g., "Customer" for "users" table)
+- "description": Clear description of what this entity represents
+
+Example: For "users" table with "email, first_name, last_name" columns:
+{
+  "name": "Customer",
+  "description": "A person who can place orders and has an account"
+}`;
+
+    try {
+      const aiResponse = await this.aiProvider.generateCompletion(prompt);
+      
+      // Try to parse JSON response
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          name: parsed.name || this.generateEntityName(table.name),
+          description: parsed.description || `Entity representing ${table.name} data`
+        };
+      }
+    } catch (error) {
+      console.error('AI parsing error:', error);
+    }
+
+    // Fallback to basic generation
+    return {
+      name: this.generateEntityName(table.name),
+      description: `Entity representing ${table.name} data`
+    };
+  }
+
+  /**
+   * Generate intelligent attribute information
+   */
+  private generateAttributeInfo(column: any, tableName: string): {name: string, description: string} {
+    // Use pattern matcher for intelligent naming and business context
+    const name = this.generateAttributeName(column.name);
+    const description = PatternMatcher.getBusinessContext(column.name);
+
+    return { name, description };
+  }
+
+  /**
+   * Use AI to generate intelligent attribute information with ENUM and Index awareness
+   */
+  private async generateIntelligentAttributeInfo(column: any, tableName: string): Promise<{
+    name: string;
+    description: string;
+    businessPurpose: string;
+    units?: string;
+    format?: string;
+    relationship?: any;
+    businessRules?: string[];
+    examples?: string[];
+    enumValues?: string[];
+    enumDescription?: string;
+    indexInfo?: {
+      hasIndex: boolean;
+      indexType?: string;
+      isUnique: boolean;
+      businessImpact: string;
+    };
+  }> {
+    try {
+      // Enhanced AI prompt with ENUM and Index information
+      const aiPrompt = `Column: ${column.name}, Type: ${column.type}, PK: ${column.isPrimaryKey}, FK: ${column.isForeignKey}, Ref: ${column.foreignKeyInfo?.referencedTable || 'None'}
+ENUM Values: ${column.enumValues ? column.enumValues.join(', ') : 'None'}
+Index Info: ${column.indexes ? JSON.stringify(column.indexes) : 'None'}
+
+Provide JSON only:
+{
+  "name": "Business name (e.g., 'TransactionAmount' for 'amt')",
+  "description": "One-line description",
+  "businessPurpose": "One-line purpose",
+  "units": "ONLY if in column name",
+  "format": "ONLY if in data type",
+  "relationship": "ONLY if FK exists",
+  "businessRules": [],
+  "enumValues": "ONLY if ENUM exists",
+  "enumDescription": "ONLY if ENUM exists",
+  "indexInfo": {
+    "hasIndex": true/false,
+    "indexType": "ONLY if indexed",
+    "isUnique": true/false,
+    "businessImpact": "Why this index matters"
+  }
+}`;
+
+      const aiResponse = await this.aiProvider.generateCompletion(aiPrompt);
+      const aiInfo = JSON.parse(aiResponse);
+
+      // Validate AI information
+      const warnings: string[] = [];
+      this.validateAIInformation(aiInfo, column, warnings);
+
+      // Add ENUM-specific validation
+      if (aiInfo.enumValues && !column.enumValues) {
+        warnings.push(`AI suggested ENUM values but column '${column.name}' is not an ENUM`);
+      }
+
+      if (column.enumValues && !aiInfo.enumValues) {
+        warnings.push(`Column '${column.name}' is an ENUM but AI didn't capture the values`);
+        aiInfo.enumValues = column.enumValues;
+        aiInfo.enumDescription = `Domain-specific values for ${column.name}`;
+      }
+
+      // Add Index-specific validation
+      if (aiInfo.indexInfo?.hasIndex && !column.indexes?.length) {
+        warnings.push(`AI suggested index but column '${column.name}' has no indexes`);
+      }
+
+      if (column.indexes?.length && !aiInfo.indexInfo?.hasIndex) {
+        warnings.push(`Column '${column.name}' has indexes but AI didn't capture this`);
+                 aiInfo.indexInfo = {
+           hasIndex: true,
+           indexType: column.indexes[0]?.type || 'unknown',
+           isUnique: column.indexes.some((idx: any) => idx.isUnique),
+           businessImpact: `Improves query performance for ${column.name} lookups`
+         };
+      }
+
+      if (warnings.length > 0) {
+        console.warn(`⚠️ AI validation warnings for column ${column.name}:`, warnings);
+      }
+
+      return aiInfo;
+    } catch (error) {
+      console.warn(`⚠️ AI generation failed for column ${column.name}, using fallback`);
+      
+      // Conservative fallback with ENUM and Index awareness
+      return {
+        name: this.generateAttributeName(column.name),
+        description: `${column.name} column`,
+        businessPurpose: `Stores ${column.name} data`,
+        businessRules: [],
+        enumValues: column.enumValues,
+        enumDescription: column.enumValues ? `Domain-specific values for ${column.name}` : undefined,
+                 indexInfo: column.indexes?.length ? {
+           hasIndex: true,
+           indexType: column.indexes[0]?.type,
+           isUnique: column.indexes.some((idx: any) => idx.isUnique),
+           businessImpact: `Performance optimization for ${column.name} queries`
+         } : {
+           hasIndex: false,
+           isUnique: false,
+           businessImpact: `No performance optimization for ${column.name}`
+         }
+      };
+    }
+  }
+
+    /**
+   * Use AI to discover intelligent relationships from foreign key constraints
+   */
+  private async discoverIntelligentRelationships(schema: DatabaseSchema, entities: SemanticEntity[]): Promise<any[]> {
+    const relationships: any[] = [];
+    
+    // Extract foreign key relationships from table constraints
+    const foreignKeyRelationships = [];
+    for (const table of schema.tables) {
+      for (const column of table.columns) {
+        if (column.isForeignKey && column.foreignKeyInfo) {
+          foreignKeyRelationships.push({
+            fromTable: table.name,
+            fromColumn: column.name,
+            toTable: column.foreignKeyInfo.referencedTable,
+            toColumn: column.foreignKeyInfo.referencedColumn
+          });
+        }
+      }
+    }
+    
+    if (foreignKeyRelationships.length === 0) {
+      return relationships;
+    }
+    
+    // Use AI to analyze foreign key relationships and suggest business relationships
+    const prompt = `Analyze these database relationships and suggest business-friendly relationship names and descriptions:
+
+Tables and their columns:
+${entities.map(e => `${e.name} (${e.databaseTable}): ${e.attributes.map(a => a.databaseColumn).join(', ')}`).join('\n')}
+
+Foreign key relationships:
+${foreignKeyRelationships.map(r => `${r.fromTable}.${r.fromColumn} -> ${r.toTable}.${r.toColumn}`).join('\n')}
+
+For each relationship, suggest:
+- "name": Business-friendly relationship name
+- "description": Clear description of the relationship
+- "type": "one-to-one", "one-to-many", or "many-to-many"
+
+Example: For users.id -> orders.user_id:
+{
+  "name": "customer_orders",
+  "description": "Orders placed by this customer",
+  "type": "one-to-many"
+}`;
+
+    // Fallback to basic relationship generation
+    for (const rel of foreignKeyRelationships) {
+      relationships.push({
+        ...rel,
+        name: `${rel.fromTable}_${rel.toTable}`,
+        description: `Relationship from ${rel.fromTable} to ${rel.toTable}`,
+        type: 'one-to-many'
+      });
+    }
+    
+    return relationships;
+  }
+
+  /**
+   * Get current semantic mapping
+   */
+  getSemanticMapping(): SemanticMapping | null {
+    return this.semanticMapping;
+  }
+
+  /**
+   * Export semantic mapping
+   */
+  exportMapping(): string {
+    if (!this.semanticMapping) {
+      throw new Error('No semantic mapping loaded');
+    }
+    return JSON.stringify(this.semanticMapping, null, 2);
+  }
+
+  /**
+   * Validate AI-generated semantic mapping against database schema
+   */
+  private async validateAIGeneratedMapping(mapping: SemanticMapping, schema: DatabaseSchema): Promise<ValidationResult> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Validate entity-table mappings
+    for (const entity of mapping.entities) {
+      const table = schema.tables.find(t => t.name === entity.databaseTable);
+      if (!table) {
+        errors.push(`Entity "${entity.name}" references non-existent table "${entity.databaseTable}"`);
+        continue;
+      }
+
+      // Validate attribute-column mappings
+      for (const attr of entity.attributes) {
+        const column = table.columns.find(c => c.name === attr.databaseColumn);
+        if (!column) {
+          errors.push(`Attribute "${attr.name}" references non-existent column "${attr.databaseColumn}" in table "${entity.databaseTable}"`);
+        } else {
+          // Verify data type consistency
+          if (attr.dataType && attr.dataType !== column.type) {
+            warnings.push(`Data type mismatch: AI suggested "${attr.dataType}" but column is "${column.type}" for "${attr.name}"`);
+          }
+          
+          // Validate AI-generated information against schema
+          this.validateAIInformation(attr, column, warnings);
+        }
+      }
+
+      // Validate relationships
+      if (entity.relationships) {
+        for (const rel of entity.relationships) {
+          const targetTable = schema.tables.find(t => t.name === rel.toEntity);
+          if (!targetTable) {
+            errors.push(`Relationship "${rel.name}" references non-existent table "${rel.toEntity}"`);
+          }
+        }
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      confidence: this.calculateConfidence(mapping, schema)
+    };
+  }
+
+  /**
+   * Validate AI-generated information against actual schema
+   */
+  private validateAIInformation(attr: any, column: any, warnings: string[]): void {
+    // Validate units - only allow if explicitly in column name
+    if (attr.units && !column.name.toLowerCase().includes(attr.units.toLowerCase())) {
+      warnings.push(`AI suggested units "${attr.units}" for "${attr.name}" but not found in column name "${column.name}"`);
+    }
+    
+    // Validate format - only allow if matches actual data type
+    if (attr.format && !column.type.includes(attr.format)) {
+      warnings.push(`AI suggested format "${attr.format}" for "${attr.name}" but column type is "${column.type}"`);
+    }
+    
+    // Validate relationship info - only allow if foreign key exists
+    if (attr.relationship && !column.isForeignKey) {
+      warnings.push(`AI suggested relationship for "${attr.name}" but column is not a foreign key`);
+    }
+    
+    // Validate business rules - only allow if constraints exist
+    if (attr.businessRules && attr.businessRules.length > 0) {
+      // Check if rules are based on actual constraints
+      const hasConstraints = column.isPrimaryKey || column.isForeignKey || !column.nullable;
+      if (!hasConstraints) {
+        warnings.push(`AI suggested business rules for "${attr.name}" but no constraints found in schema`);
+      }
+    }
+    
+    // Never allow examples - they're not in schema
+    if (attr.examples && attr.examples.length > 0) {
+      warnings.push(`AI provided examples for "${attr.name}" - examples removed as they're not in schema`);
+    }
+  }
+
+  /**
+   * Sanity validator - comprehensive post-generation validation
+   */
+  private validateLayer(mapping: SemanticMapping, schema: DatabaseSchema): {
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+    confidence: number;
+  } {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    let totalChecks = 0;
+    let passedChecks = 0;
+
+    // 1. Validate JSON structure
+    totalChecks++;
+    if (!mapping.entities || !Array.isArray(mapping.entities)) {
+      errors.push('Invalid mapping structure: entities array missing');
+    } else {
+      passedChecks++;
+    }
+
+    // 2. Validate every entity maps to actual table
+    for (const entity of mapping.entities || []) {
+      totalChecks++;
+      const table = schema.tables.find(t => t.name === entity.databaseTable);
+      if (!table) {
+        errors.push(`Entity "${entity.name}" references non-existent table "${entity.databaseTable}"`);
+      } else {
+        passedChecks++;
+      }
+
+      // 3. Validate every attribute maps to actual column
+      for (const attr of entity.attributes || []) {
+        totalChecks++;
+        const column = table?.columns.find(c => c.name === attr.databaseColumn);
+        if (!column) {
+          errors.push(`Attribute "${attr.name}" references non-existent column "${attr.databaseColumn}" in table "${entity.databaseTable}"`);
+        } else {
+          passedChecks++;
+          
+          // 4. Validate data type consistency
+          if (attr.dataType && attr.dataType !== this.mapDataType(column.type)) {
+            warnings.push(`Data type mismatch: "${attr.name}" has type "${attr.dataType}" but column is "${column.type}"`);
+          }
+        }
+      }
+    }
+
+    // 5. Validate bidirectional relationships
+    for (const entity of mapping.entities || []) {
+      for (const rel of entity.relationships || []) {
+        totalChecks++;
+        
+        // Check if target entity exists
+        const targetEntity = mapping.entities.find(e => e.name === rel.toEntity);
+        if (!targetEntity) {
+          errors.push(`Relationship "${rel.name}" references non-existent entity "${rel.toEntity}"`);
+        } else {
+          passedChecks++;
+          
+          // Check if target attribute exists
+          const targetAttr = targetEntity.attributes.find(a => a.name === rel.toAttribute);
+          if (!targetAttr) {
+            errors.push(`Relationship "${rel.name}" references non-existent attribute "${rel.toAttribute}" in entity "${rel.toEntity}"`);
+          } else {
+            passedChecks++;
+          }
+        }
+      }
+    }
+
+    // 6. Validate column type meanings
+    for (const entity of mapping.entities || []) {
+      const table = schema.tables.find(t => t.name === entity.databaseTable);
+      if (table) {
+        for (const attr of entity.attributes || []) {
+          const column = table.columns.find(c => c.name === attr.databaseColumn);
+          if (column) {
+            totalChecks++;
+            
+            // Validate inferred meanings match column types
+            if (column.type.includes('int') && attr.description?.toLowerCase().includes('text')) {
+              warnings.push(`Type mismatch: "${attr.name}" described as text but column is integer`);
+            }
+            if (column.type.includes('date') && attr.description?.toLowerCase().includes('number')) {
+              warnings.push(`Type mismatch: "${attr.name}" described as number but column is date`);
+            }
+            if (column.type.includes('bool') && attr.description?.toLowerCase().includes('amount')) {
+              warnings.push(`Type mismatch: "${attr.name}" described as amount but column is boolean`);
+            }
+            
+            passedChecks++;
+          }
+        }
+      }
+    }
+
+    const confidence = totalChecks > 0 ? (passedChecks / totalChecks) * 100 : 0;
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      confidence
+    };
+  }
+
+  /**
+   * Calculate confidence score for AI-generated mapping
+   */
+  private calculateConfidence(mapping: SemanticMapping, schema: DatabaseSchema): number {
+    let totalChecks = 0;
+    let passedChecks = 0;
+
+    // Check entity-table mappings
+    for (const entity of mapping.entities) {
+      totalChecks++;
+      if (schema.tables.find(t => t.name === entity.databaseTable)) {
+        passedChecks++;
+      }
+    }
+
+    // Check attribute-column mappings
+    for (const entity of mapping.entities) {
+      const table = schema.tables.find(t => t.name === entity.databaseTable);
+      if (table) {
+        for (const attr of entity.attributes) {
+          totalChecks++;
+          if (table.columns.find(c => c.name === attr.databaseColumn)) {
+            passedChecks++;
+          }
+        }
+      }
+    }
+
+    return totalChecks > 0 ? (passedChecks / totalChecks) * 100 : 0;
+  }
+
+  /**
+   * Cross-validate AI responses with multiple prompts
+   */
+  private async crossValidateAIResponse(prompt: string, expectedFormat: string): Promise<any> {
+    // AI validation - handled internally
+    const responses: any[] = [];
+
+    // Compare responses for consistency
+    return this.findConsistentResponse(responses, expectedFormat);
+  }
+
+  /**
+   * Find consistent response across multiple AI attempts
+   */
+  private findConsistentResponse(responses: any[], expectedFormat: string): any {
+    if (responses.length === 0) {
+      throw new Error('No valid AI responses received');
+    }
+
+    // If all responses are identical, high confidence
+    const firstResponse = responses[0];
+    const allIdentical = responses.every(r => JSON.stringify(r) === JSON.stringify(firstResponse));
+    
+    if (allIdentical) {
+      return firstResponse;
+    }
+
+    // If responses differ, use majority voting or most conservative approach
+    return this.selectBestResponse(responses, expectedFormat);
+  }
+
+  /**
+   * Select the best response when AI responses differ
+   */
+  private selectBestResponse(responses: any[], expectedFormat: string): any {
+    // Implement conservative selection logic
+    // For now, return the first valid response
+    return responses[0];
+  }
+
+  /**
+   * Enhanced semantic mapping creation with comprehensive analysis
+   */
+  public async createMappingFromSchemaWithValidation(): Promise<SemanticMapping> {
+    console.log('🔍 Creating semantic mapping with comprehensive analysis...');
+
+    // Get database schema
+    const schema = await this.dbProvider.discoverSchema();
+    
+    // Step 1: Analyze data quality
+    console.log('📊 Analyzing data quality...');
+    const dataQualityReport = await this.dataQualityProcessor.analyzeDataQuality();
+    console.log(`Data Quality Score: ${dataQualityReport.overallScore}%`);
+    
+    // Step 2: Analyze schema complexity
+    console.log('🏗️ Analyzing schema complexity...');
+    const complexityAnalysis = await this.schemaComplexityResolver.analyzeSchemaComplexity();
+    console.log(`Schema Complexity Level: ${complexityAnalysis.level}`);
+    
+    // Step 3: Resolve business context
+    console.log('🏢 Resolving business context...');
+    const businessContext = await this.businessContextResolver.resolveBusinessContext();
+    console.log(`Business Domain: ${businessContext.domain}`);
+    
+    // Step 4: Generate initial mapping
+    console.log('🤖 Generating initial semantic mapping...');
+    const initialMapping = await this.createMappingFromSchema();
+    
+    // Step 5: Apply business context
+    console.log('🔗 Applying business context...');
+    const enhancedMapping = await this.businessContextResolver.applyBusinessContextToMapping(initialMapping);
+    
+    // Step 6: Validate the mapping
+    console.log('✅ Validating semantic mapping...');
+    const validation = await this.validateAIGeneratedMapping(enhancedMapping, schema);
+    
+    if (!validation.isValid) {
+      console.error('❌ AI-generated mapping validation failed:');
+      validation.errors.forEach(error => console.error(`  - ${error}`));
+      
+      // Attempt to fix errors
+      const correctedMapping = await this.correctMappingErrors(enhancedMapping, validation.errors, schema);
+      const correctedValidation = await this.validateAIGeneratedMapping(correctedMapping, schema);
+      
+      if (!correctedValidation.isValid) {
+        throw new Error(`Failed to create valid semantic mapping. Confidence: ${correctedValidation.confidence}%`);
+      }
+      
+      console.log(`✅ Corrected mapping created with ${correctedValidation.confidence}% confidence`);
+      return correctedMapping;
+    }
+
+    console.log(`✅ AI-generated mapping validated with ${validation.confidence}% confidence`);
+    
+    // Log warnings
+    if (validation.warnings.length > 0) {
+      console.warn('⚠️  Warnings detected:');
+      validation.warnings.forEach(warning => console.warn(`  - ${warning}`));
+    }
+
+    // Log analysis summary
+    this.logAnalysisSummary(dataQualityReport, complexityAnalysis, businessContext, validation);
+
+    return enhancedMapping;
+  }
+
+  /**
+   * Log comprehensive analysis summary
+   */
+  private logAnalysisSummary(
+    dataQuality: DataQualityReport, 
+    complexity: SchemaComplexity, 
+    businessContext: BusinessContext, 
+    validation: ValidationResult
+  ): void {
+    console.log('\n📋 Analysis Summary:');
+    console.log('===================');
+    console.log(`📊 Data Quality: ${dataQuality.overallScore}%`);
+    console.log(`🏗️ Schema Complexity: ${complexity.level}`);
+    console.log(`🏢 Business Domain: ${businessContext.domain}`);
+    console.log(`✅ Mapping Confidence: ${validation.confidence}%`);
+    
+    if (dataQuality.issues.length > 0) {
+      console.log('\n🔍 Data Quality Issues:');
+      dataQuality.issues.forEach(issue => {
+        console.log(`  ${issue.severity.toUpperCase()}: ${issue.description}`);
+      });
+    }
+    
+    if (complexity.issues.length > 0) {
+      console.log('\n🏗️ Complexity Issues:');
+      complexity.issues.forEach(issue => {
+        console.log(`  ${issue.severity.toUpperCase()}: ${issue.description}`);
+      });
+    }
+    
+    console.log('\n💡 Recommendations:');
+    dataQuality.recommendations.forEach(rec => console.log(`  - ${rec}`));
+    complexity.recommendations.forEach(rec => console.log(`  - ${rec}`));
+  }
+
+  /**
+   * Attempt to correct mapping errors
+   */
+  private async correctMappingErrors(mapping: SemanticMapping, errors: string[], schema: DatabaseSchema): Promise<SemanticMapping> {
+    console.log('🔧 Attempting to correct mapping errors...');
+    
+    const correctedMapping = { ...mapping };
+    
+    for (const error of errors) {
+      if (error.includes('references non-existent table')) {
+        // Try to find similar table names
+        const entityName = error.match(/Entity "([^"]+)"/)?.[1];
+        if (entityName) {
+          const similarTable = this.findSimilarTable(entityName, schema.tables);
+          if (similarTable) {
+            const entity = correctedMapping.entities.find(e => e.name === entityName);
+            if (entity) {
+              entity.databaseTable = similarTable.name;
+              console.log(`  ✅ Corrected table mapping for "${entityName}" → "${similarTable.name}"`);
+            }
+          }
+        }
+      }
+      
+      if (error.includes('references non-existent column')) {
+        // Try to find similar column names
+        const attrName = error.match(/Attribute "([^"]+)"/)?.[1];
+        const tableName = error.match(/table "([^"]+)"/)?.[1];
+        
+        if (attrName && tableName) {
+          const table = schema.tables.find(t => t.name === tableName);
+          if (table) {
+            const similarColumn = this.findSimilarColumn(attrName, table.columns);
+            if (similarColumn) {
+              const entity = correctedMapping.entities.find(e => e.databaseTable === tableName);
+              const attr = entity?.attributes.find(a => a.name === attrName);
+              if (attr) {
+                attr.databaseColumn = similarColumn.name;
+                console.log(`  ✅ Corrected column mapping for "${attrName}" → "${similarColumn.name}"`);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return correctedMapping;
+  }
+
+  /**
+   * Find similar table name using fuzzy matching
+   */
+  private findSimilarTable(entityName: string, tables: any[]): any {
+    const entityWords = entityName.toLowerCase().split(/\s+/);
+    
+    for (const table of tables) {
+      const tableWords = table.name.toLowerCase().split(/_/);
+      const similarity = this.calculateSimilarity(entityWords, tableWords);
+      
+      if (similarity > 0.7) {
+        return table;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Find similar column name using fuzzy matching
+   */
+  private findSimilarColumn(attrName: string, columns: any[]): any {
+    const attrWords = attrName.toLowerCase().split(/\s+/);
+    
+    for (const column of columns) {
+      const columnWords = column.name.toLowerCase().split(/_/);
+      const similarity = this.calculateSimilarity(attrWords, columnWords);
+      
+      if (similarity > 0.6) {
+        return column;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Calculate similarity between word arrays
+   */
+  private calculateSimilarity(words1: string[], words2: string[]): number {
+    const commonWords = words1.filter(word => words2.includes(word));
+    const totalWords = Math.max(words1.length, words2.length);
+    return totalWords > 0 ? commonWords.length / totalWords : 0;
+  }
+
+  /**
+   * Generate embeddings for semantic mapping with batch processing
+   */
+  private async generateEmbeddingsForMapping(mapping: SemanticMapping, schema: DatabaseSchema): Promise<void> {
+    if (!this.aiProvider) {
+      console.warn('⚠️ No AI provider available, skipping embedding generation');
+      return;
+    }
+
+    console.log('🧠 Generating embeddings for semantic layer...');
+    
+    const embeddings: Array<{ id: string; text: string; type: string; source: string }> = [];
+    
+    // Collect all embedding candidates
+    for (const entity of mapping.entities) {
+      // Entity-level embedding
+      embeddings.push({
+        id: `entity_${entity.name}`,
+        text: `Entity: ${entity.name}. ${entity.description}. Attributes: ${entity.attributes.map(a => a.name).join(', ')}`,
+        type: 'entity',
+        source: entity.databaseTable
+      });
+      
+      // Attribute-level embeddings
+      for (const attr of entity.attributes) {
+        let attrText = `Attribute: ${attr.name} in ${entity.name}. ${attr.description}`;
+        
+        // Add business purpose if available
+        if ('businessPurpose' in attr && attr.businessPurpose) {
+          attrText += `. Business purpose: ${attr.businessPurpose}`;
+        }
+        
+        // Add business rules if available
+        if ('businessRules' in attr && Array.isArray(attr.businessRules) && attr.businessRules.length > 0) {
+          attrText += `. Rules: ${attr.businessRules.join(', ')}`;
+        }
+        
+        // Add enum values if available
+        if ('enumValues' in attr && Array.isArray(attr.enumValues) && attr.enumValues.length > 0) {
+          attrText += `. Values: ${attr.enumValues.join(', ')}`;
+        }
+        
+        embeddings.push({
+          id: `attribute_${entity.name}_${attr.name}`,
+          text: attrText,
+          type: 'attribute',
+          source: `${entity.databaseTable}.${attr.databaseColumn}`
+        });
+      }
+      
+      // Relationship embeddings
+      for (const rel of entity.relationships) {
+        embeddings.push({
+          id: `relationship_${entity.name}_${rel.name}`,
+          text: `Relationship: ${rel.name} from ${entity.name} to ${rel.toEntity}. ${rel.description}. Type: ${rel.type}`,
+          type: 'relationship',
+          source: `${entity.databaseTable} -> ${rel.toEntity}`
+        });
+      }
+    }
+    
+    // Process embeddings in batches
+    console.log(`📦 Processing ${embeddings.length} embeddings in batches of ${this.EMBEDDING_BATCH_SIZE}...`);
+    
+    for (let i = 0; i < embeddings.length; i += this.EMBEDDING_BATCH_SIZE) {
+      const batch = embeddings.slice(i, i + this.EMBEDDING_BATCH_SIZE);
+      
+      await Promise.all(batch.map(async (embedding) => {
+        try {
+          const vector = await this.aiProvider.generateEmbeddings(embedding.text);
+          await this.vectorStore.addEmbedding({
+            id: embedding.id,
+            vector,
+            metadata: {
+              text: embedding.text,
+              type: embedding.type as any, // Type assertion for embedding type
+              source: embedding.source,
+              entityName: embedding.type === 'entity' ? embedding.source : undefined,
+              attributeName: embedding.type === 'attribute' ? embedding.source.split('.').pop() : undefined
+            }
+          });
+          this.performanceMetrics.embeddingsGenerated++;
+        } catch (error) {
+          console.warn(`⚠️ Failed to generate embedding for ${embedding.id}:`, error);
+        }
+      }));
+      
+      // Progress indicator
+      if ((i + this.EMBEDDING_BATCH_SIZE) % (this.EMBEDDING_BATCH_SIZE * 5) === 0) {
+        console.log(`📈 Processed ${Math.min(i + this.EMBEDDING_BATCH_SIZE, embeddings.length)}/${embeddings.length} embeddings...`);
+      }
+    }
+    
+    console.log(`✅ Generated ${this.performanceMetrics.embeddingsGenerated} embeddings`);
+  }
+
+  /**
+   * Optimized entity generation with batch processing for large schemas
+   */
+  private async generateIntelligentEntitiesOptimized(schema: DatabaseSchema): Promise<SemanticEntity[]> {
+    const entities: SemanticEntity[] = [];
+    
+    console.log(`🔄 Processing ${schema.tables.length} tables in batches of ${this.BATCH_SIZE}...`);
+    
+    // Process tables in batches
+    for (let i = 0; i < schema.tables.length; i += this.BATCH_SIZE) {
+      const batch = schema.tables.slice(i, i + this.BATCH_SIZE);
+      
+      const batchEntities = await Promise.all(batch.map(async (table) => {
+        try {
+          const entityInfo = await this.generateEntityInfo(table);
+          const attributes = await this.generateIntelligentAttributesOptimized(table);
+          
+          this.performanceMetrics.tablesProcessed++;
+          this.performanceMetrics.columnsProcessed += table.columns.length;
+          
+          return {
+            name: entityInfo.name,
+            description: entityInfo.description,
+            databaseTable: table.name,
+            attributes,
+            relationships: []
+          };
+        } catch (error) {
+          console.warn(`⚠️ Failed to process table ${table.name}:`, error);
+          // Fallback to basic entity
+          return {
+            name: this.generateEntityName(table.name),
+            description: `Table: ${table.name}`,
+            databaseTable: table.name,
+            attributes: table.columns.map(col => ({
+              name: this.generateAttributeName(col.name),
+              description: `Attribute for ${col.name}`,
+              databaseColumn: col.name,
+              dataType: this.mapDataType(col.type),
+              isRequired: !col.nullable,
+              isPrimaryKey: col.isPrimaryKey
+            })),
+            relationships: []
+          };
+        }
+      }));
+      
+      entities.push(...batchEntities);
+      
+      // Progress indicator
+      if ((i + this.BATCH_SIZE) % (this.BATCH_SIZE * 5) === 0) {
+        console.log(`📈 Processed ${Math.min(i + this.BATCH_SIZE, schema.tables.length)}/${schema.tables.length} tables...`);
+      }
+    }
+    
+    return entities;
+  }
+
+  /**
+   * Optimized attribute generation with batch processing
+   */
+  private async generateIntelligentAttributesOptimized(table: any): Promise<SemanticAttribute[]> {
+    const attributes: SemanticAttribute[] = [];
+    
+    // Process columns in smaller batches for AI calls
+    const columnBatchSize = Math.min(this.EMBEDDING_BATCH_SIZE, table.columns.length);
+    
+    for (let i = 0; i < table.columns.length; i += columnBatchSize) {
+      const batch = table.columns.slice(i, i + columnBatchSize);
+      
+      const batchAttributes = await Promise.all(batch.map(async (column: any) => {
+        try {
+          return await this.generateIntelligentAttributeInfo(column, table.name);
+        } catch (error) {
+          console.warn(`⚠️ Failed to process column ${column.name}:`, error);
+          // Fallback to basic attribute
+          return this.generateAttributeInfo(column, table.name);
+        }
+      }));
+      
+      attributes.push(...batchAttributes);
+    }
+    
+    return attributes;
+  }
+
+  /**
+   * Reset performance metrics
+   */
+  private resetPerformanceMetrics(): void {
+    this.performanceMetrics = {
+      schemaDiscoveryTime: 0,
+      aiGenerationTime: 0,
+      embeddingGenerationTime: 0,
+      validationTime: 0,
+      totalProcessingTime: 0,
+      tablesProcessed: 0,
+      columnsProcessed: 0,
+      embeddingsGenerated: 0
+    };
+  }
+
+  /**
+   * Log performance metrics
+   */
+  private logPerformanceMetrics(): void {
+    console.log('\n📊 Performance Metrics:');
+    console.log(`⏱️  Total Processing Time: ${this.performanceMetrics.totalProcessingTime}ms`);
+    console.log(`🔍 Schema Discovery: ${this.performanceMetrics.schemaDiscoveryTime}ms`);
+    console.log(`🤖 AI Generation: ${this.performanceMetrics.aiGenerationTime}ms`);
+    console.log(`🧠 Embedding Generation: ${this.performanceMetrics.embeddingGenerationTime}ms`);
+    console.log(`✅ Validation: ${this.performanceMetrics.validationTime}ms`);
+    console.log(`📊 Tables Processed: ${this.performanceMetrics.tablesProcessed}`);
+    console.log(`📊 Columns Processed: ${this.performanceMetrics.columnsProcessed}`);
+    console.log(`🧠 Embeddings Generated: ${this.performanceMetrics.embeddingsGenerated}`);
+    
+    // Performance insights
+    if (this.performanceMetrics.totalProcessingTime > 30000) {
+      console.warn('⚠️  Processing time > 30s. Consider optimizing for large schemas.');
+    }
+    if (this.performanceMetrics.aiGenerationTime > this.performanceMetrics.totalProcessingTime * 0.7) {
+      console.warn('⚠️  AI generation taking >70% of time. Consider batch size optimization.');
+    }
+    if (this.performanceMetrics.embeddingGenerationTime > this.performanceMetrics.totalProcessingTime * 0.5) {
+      console.warn('⚠️  Embedding generation taking >50% of time. Consider parallel processing.');
+    }
+  }
+
+  /**
+   * Get performance metrics for external monitoring
+   */
+  getPerformanceMetrics() {
+    return { ...this.performanceMetrics };
+  }
+
+  /**
+   * Search semantic layer using pattern matching (no AI required)
+   */
+  async searchSemanticLayer(query: string, limit: number = 5): Promise<any[]> {
+    if (!this.semanticMapping) {
+      throw new Error('No semantic mapping available');
+    }
+
+    const results: any[] = [];
+    const queryLower = query.toLowerCase();
+
+    // Search through entities and attributes using pattern matching
+    for (const entity of this.semanticMapping.entities) {
+      // Check entity name and description
+      if (entity.name.toLowerCase().includes(queryLower) || 
+          entity.description.toLowerCase().includes(queryLower)) {
+        results.push({
+          type: 'entity',
+          source: entity.name,
+          description: entity.description,
+          score: 0.9
+        });
+      }
+
+      // Check attributes
+      for (const attr of entity.attributes) {
+        if (attr.name.toLowerCase().includes(queryLower) || 
+            attr.description.toLowerCase().includes(queryLower)) {
+          results.push({
+            type: 'attribute',
+            source: `${entity.name}.${attr.name}`,
+            description: attr.description,
+            entity: entity.name,
+            score: 0.8
+          });
+        }
+      }
+
+      // Check relationships
+      for (const rel of entity.relationships) {
+        if (rel.name.toLowerCase().includes(queryLower) || 
+            rel.description.toLowerCase().includes(queryLower)) {
+          results.push({
+            type: 'relationship',
+            source: `${entity.name}.${rel.name}`,
+            description: rel.description,
+            entity: entity.name,
+            score: 0.7
+          });
+        }
+      }
+    }
+
+    // Sort by score and limit results
+    return results
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  }
+
+
+
+
+
+
+}

@@ -1,0 +1,392 @@
+{
+  "metadata": {
+    "projectName": "ecommerce-app",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "lastModified": "2024-01-15T10:30:00Z",
+    "version": "1.0.0",
+    "databaseType": "postgresql",
+    "databaseName": "ecommerce_production",
+    "totalEntities": 4,
+    "totalAttributes": 15,
+    "totalRelationships": 3,
+    "aiConfidence": 94,
+    "instructions": [
+      "This semantic layer file can be edited manually to customize your AI-readable schema",
+      "Add business context, improve descriptions, or fix AI-generated content",
+      "Run 'sed sync' to detect database changes and update this file",
+      "Run 'sed validate' to check if your edits are valid against the database"
+    ]
+  },
+  "entities": [
+    {
+      "name": "Customer",
+      "description": "E-commerce customer with account information and purchase history",
+      "databaseTable": "users",
+      "businessPurpose": "Core customer entity for order management and marketing",
+      "attributes": [
+        {
+          "name": "customerId",
+          "description": "Unique customer identifier",
+          "databaseColumn": "id",
+          "dataType": "number",
+          "isPrimaryKey": true,
+          "isNullable": false,
+          "businessPurpose": "Primary key for customer records and order references",
+          "businessRules": ["Must be unique", "Auto-generated", "Cannot be null"],
+          "examples": [1, 2, 3]
+        },
+        {
+          "name": "emailAddress",
+          "description": "Customer's primary email for account access and notifications",
+          "databaseColumn": "email",
+          "dataType": "string",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Customer authentication and order communication",
+          "businessRules": ["Must be valid email format", "Required for account creation", "Must be unique"],
+          "examples": ["customer@example.com", "john.doe@gmail.com"]
+        },
+        {
+          "name": "firstName",
+          "description": "Customer's first name for personalization",
+          "databaseColumn": "first_name",
+          "dataType": "string",
+          "isPrimaryKey": false,
+          "isNullable": true,
+          "businessPurpose": "Personalized communication and order display",
+          "businessRules": ["Optional field", "Max length 50 characters"],
+          "examples": ["John", "Jane", "Michael"]
+        },
+        {
+          "name": "lastName",
+          "description": "Customer's last name for personalization",
+          "databaseColumn": "last_name",
+          "dataType": "string",
+          "isPrimaryKey": false,
+          "isNullable": true,
+          "businessPurpose": "Personalized communication and order display",
+          "businessRules": ["Optional field", "Max length 50 characters"],
+          "examples": ["Doe", "Smith", "Johnson"]
+        },
+        {
+          "name": "customerSegment",
+          "description": "Customer classification for targeted marketing",
+          "databaseColumn": "segment",
+          "dataType": "string",
+          "isPrimaryKey": false,
+          "isNullable": true,
+          "businessPurpose": "Marketing segmentation and personalized experiences",
+          "businessRules": ["Must be one of: premium, standard, basic", "Default: standard"],
+          "examples": ["premium", "standard", "basic"]
+        },
+        {
+          "name": "accountCreatedAt",
+          "description": "Date when customer account was created",
+          "databaseColumn": "created_at",
+          "dataType": "date",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Customer lifecycle tracking and retention analysis",
+          "businessRules": ["Auto-generated on account creation", "Cannot be null"],
+          "examples": ["2024-01-15T10:30:00Z"]
+        }
+      ],
+      "relationships": [
+        {
+          "name": "customer_orders",
+          "description": "All orders placed by this customer",
+          "type": "one_to_many",
+          "targetEntity": "Order",
+          "foreignKey": "customerId",
+          "businessPurpose": "Customer purchase history and order management"
+        }
+      ]
+    },
+    {
+      "name": "Order",
+      "description": "Customer order with items and payment information",
+      "databaseTable": "orders",
+      "businessPurpose": "Core order entity for e-commerce operations",
+      "attributes": [
+        {
+          "name": "orderId",
+          "description": "Unique order identifier",
+          "databaseColumn": "id",
+          "dataType": "number",
+          "isPrimaryKey": true,
+          "isNullable": false,
+          "businessPurpose": "Primary key for order records and item references",
+          "businessRules": ["Must be unique", "Auto-generated", "Cannot be null"],
+          "examples": [1001, 1002, 1003]
+        },
+        {
+          "name": "customerId",
+          "description": "Reference to customer who placed the order",
+          "databaseColumn": "user_id",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "isForeignKey": true,
+          "referencedTable": "users",
+          "businessPurpose": "Link order to customer for tracking and support",
+          "businessRules": ["Must reference valid customer", "Cannot be null"],
+          "examples": [1, 2, 3]
+        },
+                 {
+           "name": "orderStatus",
+           "description": "Current status of the order",
+           "databaseColumn": "status",
+           "dataType": "string",
+           "isPrimaryKey": false,
+           "isNullable": false,
+           "businessPurpose": "Order tracking and fulfillment management",
+           "businessRules": ["Must be one of: pending, confirmed, shipped, delivered, cancelled"],
+           "examples": ["pending", "confirmed", "shipped", "delivered", "cancelled"],
+           "enumValues": ["pending", "confirmed", "shipped", "delivered", "cancelled"],
+           "enumDescription": "Order lifecycle status values for tracking fulfillment progress"
+         },
+        {
+          "name": "totalAmount",
+          "description": "Total order amount including taxes and shipping",
+          "databaseColumn": "total_amount",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Revenue tracking and financial reporting",
+          "businessRules": ["Must be positive", "Includes taxes and shipping", "Cannot be null"],
+          "units": "USD",
+          "examples": [99.99, 149.50, 299.00]
+        },
+        {
+          "name": "orderDate",
+          "description": "Date when order was placed",
+          "databaseColumn": "created_at",
+          "dataType": "date",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Order timeline and reporting",
+          "businessRules": ["Auto-generated on order creation", "Cannot be null"],
+          "examples": ["2024-01-15T14:30:00Z"]
+        }
+      ],
+      "relationships": [
+        {
+          "name": "order_customer",
+          "description": "Customer who placed this order",
+          "type": "many_to_one",
+          "targetEntity": "Customer",
+          "foreignKey": "customerId",
+          "businessPurpose": "Customer order history and support"
+        },
+        {
+          "name": "order_items",
+          "description": "All items in this order",
+          "type": "one_to_many",
+          "targetEntity": "OrderItem",
+          "foreignKey": "orderId",
+          "businessPurpose": "Order details and inventory management"
+        }
+      ]
+    },
+    {
+      "name": "Product",
+      "description": "Product catalog with pricing and inventory information",
+      "databaseTable": "products",
+      "businessPurpose": "Product management and catalog operations",
+      "attributes": [
+        {
+          "name": "productId",
+          "description": "Unique product identifier",
+          "databaseColumn": "id",
+          "dataType": "number",
+          "isPrimaryKey": true,
+          "isNullable": false,
+          "businessPurpose": "Primary key for product records and order item references",
+          "businessRules": ["Must be unique", "Auto-generated", "Cannot be null"],
+          "examples": [101, 102, 103]
+        },
+        {
+          "name": "productName",
+          "description": "Product name for display and search",
+          "databaseColumn": "name",
+          "dataType": "string",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Product identification and catalog display",
+          "businessRules": ["Required field", "Max length 200 characters", "Cannot be null"],
+          "examples": ["Wireless Headphones", "Smart Watch", "Laptop Stand"]
+        },
+        {
+          "name": "productDescription",
+          "description": "Detailed product description",
+          "databaseColumn": "description",
+          "dataType": "string",
+          "isPrimaryKey": false,
+          "isNullable": true,
+          "businessPurpose": "Product information and marketing",
+          "businessRules": ["Optional field", "Max length 1000 characters"],
+          "examples": ["High-quality wireless headphones with noise cancellation"]
+        },
+        {
+          "name": "productPrice",
+          "description": "Product price for purchase",
+          "databaseColumn": "price",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Pricing and revenue calculation",
+          "businessRules": ["Must be positive", "Cannot be null"],
+          "units": "USD",
+          "examples": [99.99, 149.50, 299.00]
+        },
+        {
+          "name": "inventoryQuantity",
+          "description": "Available inventory quantity",
+          "databaseColumn": "stock_quantity",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Inventory management and availability tracking",
+          "businessRules": ["Must be non-negative", "Cannot be null"],
+          "examples": [50, 100, 25]
+        }
+      ],
+      "relationships": [
+        {
+          "name": "product_order_items",
+          "description": "All order items for this product",
+          "type": "one_to_many",
+          "targetEntity": "OrderItem",
+          "foreignKey": "productId",
+          "businessPurpose": "Product sales tracking and inventory management"
+        }
+      ]
+    },
+    {
+      "name": "OrderItem",
+      "description": "Individual items within an order",
+      "databaseTable": "order_items",
+      "businessPurpose": "Order detail tracking and inventory management",
+      "attributes": [
+        {
+          "name": "orderItemId",
+          "description": "Unique order item identifier",
+          "databaseColumn": "id",
+          "dataType": "number",
+          "isPrimaryKey": true,
+          "isNullable": false,
+          "businessPurpose": "Primary key for order item records",
+          "businessRules": ["Must be unique", "Auto-generated", "Cannot be null"],
+          "examples": [2001, 2002, 2003]
+        },
+        {
+          "name": "orderId",
+          "description": "Reference to parent order",
+          "databaseColumn": "order_id",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "isForeignKey": true,
+          "referencedTable": "orders",
+          "businessPurpose": "Link item to order for tracking",
+          "businessRules": ["Must reference valid order", "Cannot be null"],
+          "examples": [1001, 1002, 1003]
+        },
+        {
+          "name": "productId",
+          "description": "Reference to product being ordered",
+          "databaseColumn": "product_id",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "isForeignKey": true,
+          "referencedTable": "products",
+          "businessPurpose": "Link item to product for details",
+          "businessRules": ["Must reference valid product", "Cannot be null"],
+          "examples": [101, 102, 103]
+        },
+        {
+          "name": "quantity",
+          "description": "Quantity of product ordered",
+          "databaseColumn": "quantity",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Order quantity tracking and inventory deduction",
+          "businessRules": ["Must be positive", "Cannot be null"],
+          "examples": [1, 2, 5]
+        },
+        {
+          "name": "unitPrice",
+          "description": "Price per unit at time of order",
+          "databaseColumn": "unit_price",
+          "dataType": "number",
+          "isPrimaryKey": false,
+          "isNullable": false,
+          "businessPurpose": "Price tracking and order total calculation",
+          "businessRules": ["Must be positive", "Cannot be null"],
+          "units": "USD",
+          "examples": [99.99, 149.50, 299.00]
+        }
+      ],
+      "relationships": [
+        {
+          "name": "order_item_order",
+          "description": "Parent order for this item",
+          "type": "many_to_one",
+          "targetEntity": "Order",
+          "foreignKey": "orderId",
+          "businessPurpose": "Order context and tracking"
+        },
+        {
+          "name": "order_item_product",
+          "description": "Product details for this item",
+          "type": "many_to_one",
+          "targetEntity": "Product",
+          "foreignKey": "productId",
+          "businessPurpose": "Product information and inventory management"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "name": "customer_orders",
+      "description": "Customer to orders relationship",
+      "sourceEntity": "Customer",
+      "targetEntity": "Order",
+      "type": "one_to_many",
+      "foreignKey": "customerId",
+      "businessPurpose": "Customer purchase history and order management"
+    },
+    {
+      "name": "order_items",
+      "description": "Order to order items relationship",
+      "sourceEntity": "Order",
+      "targetEntity": "OrderItem",
+      "type": "one_to_many",
+      "foreignKey": "orderId",
+      "businessPurpose": "Order detail tracking and fulfillment"
+    },
+    {
+      "name": "product_order_items",
+      "description": "Product to order items relationship",
+      "sourceEntity": "Product",
+      "targetEntity": "OrderItem",
+      "type": "one_to_many",
+      "foreignKey": "productId",
+      "businessPurpose": "Product sales tracking and inventory management"
+    }
+  ],
+  "businessContext": {
+    "domain": "E-commerce",
+    "industry": "Retail",
+    "keyMetrics": [
+      "Total revenue",
+      "Customer lifetime value",
+      "Order conversion rate",
+      "Product performance",
+      "Inventory turnover"
+    ]
+  }
+} 

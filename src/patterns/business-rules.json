@@ -1,0 +1,595 @@
+{
+  "calculation_patterns": {
+    "financial": {
+      "total_price": {
+        "pattern": ["price", "quantity"],
+        "formula": "price * quantity",
+        "description": "Total cost calculation for line items",
+        "business_purpose": "Revenue calculation and billing accuracy",
+        "examples": ["order_items.total_price = price * quantity", "invoice_items.line_total = unit_price * quantity"]
+      },
+      "gross_margin": {
+        "pattern": ["revenue", "cost"],
+        "formula": "revenue - cost",
+        "description": "Profit margin before expenses",
+        "business_purpose": "Profitability analysis and pricing strategy",
+        "examples": ["products.gross_margin = selling_price - cost_price", "orders.profit = total_amount - total_cost"]
+      },
+      "net_profit": {
+        "pattern": ["gross_margin", "expenses"],
+        "formula": "gross_margin - expenses",
+        "description": "Final profit after all costs",
+        "business_purpose": "Financial performance measurement",
+        "examples": ["orders.net_profit = gross_margin - shipping_cost - tax_amount"]
+      },
+      "profit_margin_percentage": {
+        "pattern": ["gross_margin", "revenue"],
+        "formula": "(gross_margin / revenue) * 100",
+        "description": "Profit margin as percentage",
+        "business_purpose": "Financial ratio analysis",
+        "examples": ["products.margin_percentage = ((selling_price - cost_price) / selling_price) * 100"]
+      },
+      "total_amount": {
+        "pattern": ["subtotal", "tax", "shipping"],
+        "formula": "subtotal + tax + shipping",
+        "description": "Complete order total",
+        "business_purpose": "Customer billing and revenue recognition",
+        "examples": ["orders.total_amount = subtotal + tax_amount + shipping_cost"]
+      },
+      "discount_amount": {
+        "pattern": ["original_price", "discount_percentage"],
+        "formula": "original_price * (discount_percentage / 100)",
+        "description": "Amount saved from discount",
+        "business_purpose": "Promotional pricing and customer savings",
+        "examples": ["orders.discount_amount = subtotal * (discount_rate / 100)"]
+      },
+      "total_in_local_currency": {
+        "pattern": ["amount", "exchange_rate"],
+        "formula": "amount * exchange_rate",
+        "description": "Convert amount to local currency",
+        "business_purpose": "Multi-currency support and localization",
+        "examples": ["orders.local_total = usd_amount * exchange_rate"]
+      },
+      "tax_amount": {
+        "pattern": ["subtotal", "tax_rate"],
+        "formula": "subtotal * (tax_rate / 100)",
+        "description": "Calculate tax amount",
+        "business_purpose": "Tax compliance and billing accuracy",
+        "examples": ["orders.tax_amount = subtotal * (tax_rate / 100)"]
+      },
+      "monthly_recurring_revenue": {
+        "pattern": ["subscription_amount", "billing_cycle"],
+        "formula": "subscription_amount * (12 / billing_cycle_months)",
+        "description": "Annualized monthly recurring revenue",
+        "business_purpose": "SaaS metrics and growth tracking",
+        "examples": ["subscriptions.mrr = monthly_amount * 1", "subscriptions.mrr = annual_amount / 12"]
+      },
+      "customer_acquisition_cost": {
+        "pattern": ["marketing_spend", "new_customers"],
+        "formula": "marketing_spend / new_customers",
+        "description": "Cost to acquire each new customer",
+        "business_purpose": "Marketing ROI and customer profitability",
+        "examples": ["marketing.cac = total_spend / customers_acquired"]
+      }
+    },
+    "inventory": {
+      "available_stock": {
+        "pattern": ["total_stock", "reserved_stock"],
+        "formula": "total_stock - reserved_stock",
+        "description": "Stock available for sale",
+        "business_purpose": "Inventory management and order fulfillment",
+        "examples": ["products.available_quantity = total_quantity - reserved_quantity"]
+      },
+      "stock_value": {
+        "pattern": ["quantity", "unit_cost"],
+        "formula": "quantity * unit_cost",
+        "description": "Total value of inventory",
+        "business_purpose": "Asset valuation and financial reporting",
+        "examples": ["inventory.total_value = quantity * cost_per_unit"]
+      },
+      "reorder_point": {
+        "pattern": ["average_daily_sales", "lead_time"],
+        "formula": "average_daily_sales * lead_time",
+        "description": "Stock level triggering reorder",
+        "business_purpose": "Supply chain optimization",
+        "examples": ["products.reorder_level = avg_daily_demand * supplier_lead_time"]
+      },
+      "stock_turnover": {
+        "pattern": ["cost_of_goods_sold", "average_inventory"],
+        "formula": "cost_of_goods_sold / average_inventory",
+        "description": "How quickly inventory is sold",
+        "business_purpose": "Inventory efficiency measurement",
+        "examples": ["products.turnover_rate = annual_sales / average_stock_level"]
+      }
+    },
+    "analytics": {
+      "conversion_rate": {
+        "pattern": ["conversions", "visitors"],
+        "formula": "(conversions / visitors) * 100",
+        "description": "Percentage of visitors who convert",
+        "business_purpose": "Marketing effectiveness measurement",
+        "examples": ["website.conversion_rate = (orders / visitors) * 100"]
+      },
+      "average_order_value": {
+        "pattern": ["total_revenue", "order_count"],
+        "formula": "total_revenue / order_count",
+        "description": "Average amount per order",
+        "business_purpose": "Customer value analysis",
+        "examples": ["customers.aov = total_spent / order_count"]
+      },
+      "customer_lifetime_value": {
+        "pattern": ["average_order_value", "purchase_frequency", "customer_lifespan"],
+        "formula": "average_order_value * purchase_frequency * customer_lifespan",
+        "description": "Total value of customer relationship",
+        "business_purpose": "Customer acquisition and retention strategy",
+        "examples": ["customers.ltv = avg_order_value * orders_per_year * years_retained"]
+      },
+      "churn_rate": {
+        "pattern": ["churned_customers", "total_customers"],
+        "formula": "(churned_customers / total_customers) * 100",
+        "description": "Percentage of customers lost",
+        "business_purpose": "Customer retention analysis",
+        "examples": ["subscriptions.churn_rate = (cancelled / total_active) * 100"]
+      },
+      "growth_rate": {
+        "pattern": ["current_value", "previous_value"],
+        "formula": "((current_value - previous_value) / previous_value) * 100",
+        "description": "Percentage growth over period",
+        "business_purpose": "Performance trend analysis",
+        "examples": ["revenue.growth_rate = ((current_month - last_month) / last_month) * 100"]
+      },
+      "rolling_average_30d": {
+        "pattern": ["daily_values"],
+        "formula": "AVG(daily_values) OVER (ORDER BY date ROWS 29 PRECEDING)",
+        "description": "30-day rolling average",
+        "business_purpose": "Trend smoothing and pattern recognition",
+        "examples": ["sales.rolling_avg = AVG(daily_sales) OVER (ORDER BY date ROWS 29 PRECEDING)"]
+      },
+      "month_over_month_growth": {
+        "pattern": ["current_month", "previous_month"],
+        "formula": "((current_month - previous_month) / previous_month) * 100",
+        "description": "Month-over-month growth percentage",
+        "business_purpose": "Business momentum measurement",
+        "examples": ["revenue.mom_growth = ((this_month - last_month) / last_month) * 100"]
+      },
+      "retention_rate": {
+        "pattern": ["retained_customers", "total_customers"],
+        "formula": "(retained_customers / total_customers) * 100",
+        "description": "Percentage of customers retained",
+        "business_purpose": "Customer loyalty measurement",
+        "examples": ["customers.retention_rate = (active_this_month / active_last_month) * 100"]
+      }
+    },
+    "operational": {
+      "response_time": {
+        "pattern": ["response_timestamp", "request_timestamp"],
+        "formula": "response_timestamp - request_timestamp",
+        "description": "Time to respond to request",
+        "business_purpose": "Service quality measurement",
+        "examples": ["support_tickets.response_time = resolved_at - created_at"]
+      },
+      "uptime_percentage": {
+        "pattern": ["uptime_minutes", "total_minutes"],
+        "formula": "(uptime_minutes / total_minutes) * 100",
+        "description": "System availability percentage",
+        "business_purpose": "Reliability monitoring",
+        "examples": ["systems.uptime = (available_time / total_time) * 100"]
+      },
+      "efficiency_score": {
+        "pattern": ["actual_output", "expected_output"],
+        "formula": "(actual_output / expected_output) * 100",
+        "description": "Process efficiency percentage",
+        "business_purpose": "Performance optimization",
+        "examples": ["production.efficiency = (actual_units / target_units) * 100"]
+      }
+    },
+    "fleet_management": {
+      "fuel_cost_per_mile": {
+        "pattern": ["fuel_cost", "miles_driven"],
+        "formula": "fuel_cost / miles_driven",
+        "description": "Cost per mile for fuel",
+        "business_purpose": "Fuel efficiency and cost tracking",
+        "examples": ["trips.fuel_cost_per_mile = fuel_amount * fuel_price / distance_miles"]
+      },
+      "driver_performance_score": {
+        "pattern": ["safety_score", "efficiency_score", "compliance_score"],
+        "formula": "(safety_score + efficiency_score + compliance_score) / 3",
+        "description": "Overall driver performance rating",
+        "business_purpose": "Driver evaluation and training",
+        "examples": ["drivers.performance_score = (safety_rating + fuel_efficiency + on_time_delivery) / 3"]
+      },
+      "vehicle_uptime": {
+        "pattern": ["available_hours", "total_hours"],
+        "formula": "(available_hours / total_hours) * 100",
+        "description": "Vehicle availability percentage",
+        "business_purpose": "Fleet utilization optimization",
+        "examples": ["vehicles.uptime = (operational_hours / total_hours) * 100"]
+      },
+      "maintenance_cost_per_mile": {
+        "pattern": ["maintenance_cost", "total_miles"],
+        "formula": "maintenance_cost / total_miles",
+        "description": "Maintenance cost per mile driven",
+        "business_purpose": "Vehicle maintenance budgeting",
+        "examples": ["vehicles.maintenance_cost_per_mile = total_maintenance_cost / odometer_miles"]
+      },
+      "trip_efficiency": {
+        "pattern": ["actual_distance", "optimal_distance"],
+        "formula": "(optimal_distance / actual_distance) * 100",
+        "description": "Route efficiency percentage",
+        "business_purpose": "Route optimization and planning",
+        "examples": ["trips.efficiency = (shortest_distance / actual_distance) * 100"]
+      },
+      "fuel_efficiency_mpg": {
+        "pattern": ["miles_driven", "gallons_used"],
+        "formula": "miles_driven / gallons_used",
+        "description": "Miles per gallon fuel efficiency",
+        "business_purpose": "Fuel consumption monitoring",
+        "examples": ["trips.mpg = distance_miles / fuel_gallons"]
+      }
+    }
+  },
+  "status_patterns": {
+    "user_activity": {
+      "is_active": {
+        "pattern": ["last_login", "last_activity"],
+        "condition": "last_activity > (NOW() - INTERVAL 30 DAY)",
+        "description": "User has been active recently",
+        "business_purpose": "User engagement and retention",
+        "examples": ["users.is_active = last_login > (NOW() - INTERVAL 30 DAY)"]
+      },
+      "is_premium": {
+        "pattern": ["subscription_tier", "payment_status"],
+        "condition": "subscription_tier IN ('premium', 'enterprise') AND payment_status = 'active'",
+        "description": "Premium subscription user",
+        "business_purpose": "Customer segmentation and support prioritization",
+        "examples": ["users.is_premium = subscription_plan IN ('pro', 'enterprise')"]
+      },
+      "is_returning_user": {
+        "pattern": ["visit_count", "first_visit_date"],
+        "condition": "visit_count > 1 AND DATEDIFF(NOW(), first_visit_date) > 7",
+        "description": "User has returned after first visit",
+        "business_purpose": "Customer retention and re-engagement",
+        "examples": ["users.is_returning = visit_count > 1 AND days_since_first > 7"]
+      },
+      "is_power_user": {
+        "pattern": ["usage_frequency", "feature_usage_count"],
+        "condition": "usage_frequency > 5 AND feature_usage_count > 10",
+        "description": "High-engagement user",
+        "business_purpose": "Customer success and feature adoption",
+        "examples": ["users.is_power_user = daily_logins > 5 AND features_used > 10"]
+      },
+      "is_dormant_user": {
+        "pattern": ["last_activity", "dormant_threshold"],
+        "condition": "last_activity < (NOW() - dormant_threshold)",
+        "description": "Inactive user requiring re-engagement",
+        "business_purpose": "Churn prevention and reactivation campaigns",
+        "examples": ["users.is_dormant = last_login < (NOW() - INTERVAL 90 DAY)"]
+      }
+    },
+    "order_status": {
+      "is_fulfillable": {
+        "pattern": ["stock_level", "order_quantity"],
+        "condition": "stock_level >= order_quantity AND payment_status = 'paid'",
+        "description": "Order can be fulfilled immediately",
+        "business_purpose": "Order processing and inventory management",
+        "examples": ["orders.is_fulfillable = available_stock >= quantity AND payment_status = 'confirmed'"]
+      },
+      "is_overdue": {
+        "pattern": ["expected_delivery", "current_date"],
+        "condition": "expected_delivery < NOW() AND status != 'delivered'",
+        "description": "Order is past expected delivery date",
+        "business_purpose": "Customer service and operational monitoring",
+        "examples": ["orders.is_overdue = delivery_date < NOW() AND status != 'completed'"]
+      },
+      "is_delayed": {
+        "pattern": ["expected_delivery", "actual_delivery"],
+        "condition": "actual_delivery > expected_delivery",
+        "description": "Delivery is behind schedule",
+        "business_purpose": "Customer service and operational monitoring",
+        "examples": ["orders.is_delayed = actual_delivery_date > promised_delivery_date"]
+      },
+      "is_on_time": {
+        "pattern": ["expected_delivery", "actual_delivery"],
+        "condition": "actual_delivery <= expected_delivery",
+        "description": "Delivery meets or beats schedule",
+        "business_purpose": "Performance tracking and SLA compliance",
+        "examples": ["orders.is_on_time = actual_delivery_date <= promised_delivery_date"]
+      },
+      "meets_sla": {
+        "pattern": ["response_time", "sla_threshold"],
+        "condition": "response_time <= sla_threshold",
+        "description": "Service level agreement compliance",
+        "business_purpose": "Quality assurance and customer satisfaction",
+        "examples": ["support_tickets.meets_sla = response_time <= 24_hours"]
+      }
+    },
+    "system_status": {
+      "is_healthy": {
+        "pattern": ["error_rate", "threshold"],
+        "condition": "error_rate < threshold",
+        "description": "System health status",
+        "business_purpose": "Monitoring and alerting",
+        "examples": ["systems.is_healthy = error_rate < 0.01"]
+      }
+    },
+    "business_flags": {
+      "is_high_value_customer": {
+        "pattern": ["total_spent", "order_count", "customer_since"],
+        "condition": "total_spent > 1000 AND order_count > 5 AND DATEDIFF(NOW(), customer_since) > 90",
+        "description": "High-value customer requiring special attention",
+        "business_purpose": "Customer success and VIP treatment",
+        "examples": ["customers.is_high_value = lifetime_value > 1000 AND order_count > 5"]
+      },
+      "is_fraudulent": {
+        "pattern": ["risk_score", "suspicious_activity", "payment_method"],
+        "condition": "risk_score > 0.8 OR suspicious_activity = true OR payment_method = 'stolen_card'",
+        "description": "Potential fraudulent activity",
+        "business_purpose": "Risk management and fraud prevention",
+        "examples": ["orders.is_fraudulent = risk_score > 0.8 OR suspicious_patterns = true"]
+      },
+      "needs_followup": {
+        "pattern": ["last_contact", "issue_status", "priority"],
+        "condition": "DATEDIFF(NOW(), last_contact) > 7 AND issue_status = 'open' AND priority = 'high'",
+        "description": "Requires immediate follow-up",
+        "business_purpose": "Customer service and issue resolution",
+        "examples": ["support_tickets.needs_followup = days_since_update > 7 AND status = 'open'"]
+      },
+      "is_vip_customer": {
+        "pattern": ["customer_tier", "lifetime_value", "support_level"],
+        "condition": "customer_tier = 'vip' OR lifetime_value > 10000 OR support_level = 'dedicated'",
+        "description": "VIP customer with premium support",
+        "business_purpose": "Premium customer experience and retention",
+        "examples": ["customers.is_vip = tier = 'vip' OR lifetime_value > 10000"]
+      }
+    },
+    "audit_trail": {
+      "has_audit_trail": {
+        "pattern": ["created_by", "updated_by", "created_at", "updated_at"],
+        "condition": "created_by IS NOT NULL AND updated_by IS NOT NULL",
+        "description": "Complete audit trail available",
+        "business_purpose": "Compliance and accountability tracking",
+        "examples": ["records.has_audit_trail = created_by IS NOT NULL AND updated_by IS NOT NULL"]
+      },
+      "is_recently_modified": {
+        "pattern": ["updated_at", "modified_threshold"],
+        "condition": "updated_at > (NOW() - modified_threshold)",
+        "description": "Recently modified record",
+        "business_purpose": "Change tracking and data freshness",
+        "examples": ["records.is_recently_modified = updated_at > (NOW() - INTERVAL 7 DAY)"]
+      },
+      "has_approval_workflow": {
+        "pattern": ["status", "approved_by", "approval_date"],
+        "condition": "status IN ('pending', 'approved', 'rejected') AND approved_by IS NOT NULL",
+        "description": "Approval workflow in place",
+        "business_purpose": "Process control and compliance",
+        "examples": ["requests.has_approval = status IN ('pending', 'approved', 'rejected')"]
+      }
+    },
+    "fleet_status": {
+      "vehicle_available": {
+        "pattern": ["vehicle_status", "maintenance_status"],
+        "condition": "vehicle_status = 'available' AND maintenance_status != 'maintenance_required'",
+        "description": "Vehicle is available for assignment",
+        "business_purpose": "Fleet scheduling and dispatch",
+        "examples": ["vehicles.is_available = status = 'active' AND maintenance_due = false"]
+      },
+      "driver_qualified": {
+        "pattern": ["license_status", "certification_status", "medical_status"],
+        "condition": "license_status = 'valid' AND certification_status = 'current' AND medical_status = 'cleared'",
+        "description": "Driver meets all qualification requirements",
+        "business_purpose": "Driver assignment and compliance",
+        "examples": ["drivers.is_qualified = license_valid = true AND medical_clearance = true"]
+      },
+      "trip_completed": {
+        "pattern": ["trip_status", "delivery_status"],
+        "condition": "trip_status = 'completed' AND delivery_status = 'delivered'",
+        "description": "Trip successfully completed",
+        "business_purpose": "Trip tracking and performance",
+        "examples": ["trips.is_completed = status = 'completed' AND delivery_confirmed = true"]
+      },
+      "maintenance_due": {
+        "pattern": ["last_maintenance", "maintenance_interval", "current_mileage"],
+        "condition": "current_mileage > (last_maintenance_mileage + maintenance_interval) OR DATEDIFF(NOW(), last_maintenance_date) > maintenance_interval_days",
+        "description": "Vehicle maintenance is due",
+        "business_purpose": "Preventive maintenance scheduling",
+        "examples": ["vehicles.maintenance_due = odometer > (last_service_miles + service_interval)"]
+      },
+      "fuel_low": {
+        "pattern": ["fuel_level", "fuel_threshold"],
+        "condition": "fuel_level < fuel_threshold",
+        "description": "Vehicle fuel level is low",
+        "business_purpose": "Fuel management and refueling",
+        "examples": ["vehicles.fuel_low = fuel_gauge < 0.25"]
+      }
+    }
+  },
+  "relationship_patterns": {
+    "foreign_keys": {
+      "user_orders": {
+        "from": ["user_id", "customer_id"],
+        "to": ["users.id", "customers.id"],
+        "type": "one_to_many",
+        "description": "User can have multiple orders",
+        "business_purpose": "Customer relationship management",
+        "examples": ["orders.user_id -> users.id", "orders.customer_id -> customers.id"]
+      },
+      "order_items": {
+        "from": ["order_id", "invoice_id"],
+        "to": ["orders.id", "invoices.id"],
+        "type": "one_to_many",
+        "description": "Order can have multiple items",
+        "business_purpose": "Order management and fulfillment",
+        "examples": ["order_items.order_id -> orders.id", "invoice_items.invoice_id -> invoices.id"]
+      },
+      "product_category": {
+        "from": ["category_id", "department_id"],
+        "to": ["categories.id", "departments.id"],
+        "type": "many_to_one",
+        "description": "Products belong to categories",
+        "business_purpose": "Product organization and navigation",
+        "examples": ["products.category_id -> categories.id", "products.department_id -> departments.id"]
+      },
+      "user_subscriptions": {
+        "from": ["user_id", "customer_id"],
+        "to": ["users.id", "customers.id"],
+        "type": "one_to_many",
+        "description": "User can have multiple subscriptions",
+        "business_purpose": "Subscription management and billing",
+        "examples": ["subscriptions.user_id -> users.id", "subscriptions.customer_id -> customers.id"]
+      },
+      "product_inventory": {
+        "from": ["product_id", "item_id"],
+        "to": ["products.id", "items.id"],
+        "type": "one_to_one",
+        "description": "Product has inventory information",
+        "business_purpose": "Inventory tracking and stock management",
+        "examples": ["inventory.product_id -> products.id", "stock.item_id -> items.id"]
+      }
+    },
+    "calculated_fields": {
+      "age": {
+        "pattern": ["birth_date", "date_of_birth"],
+        "formula": "YEAR(NOW()) - YEAR(birth_date)",
+        "description": "Calculated age from birth date",
+        "business_purpose": "Demographic analysis and personalization",
+        "examples": ["users.age = YEAR(NOW()) - YEAR(birth_date)", "customers.age = YEAR(NOW()) - YEAR(date_of_birth)"]
+      },
+      "days_since_last_order": {
+        "pattern": ["last_order_date", "last_purchase_date"],
+        "formula": "DATEDIFF(NOW(), last_order_date)",
+        "description": "Days since customer's last order",
+        "business_purpose": "Customer retention and re-engagement",
+        "examples": ["customers.days_since_order = DATEDIFF(NOW(), last_order_date)"]
+      },
+      "order_frequency": {
+        "pattern": ["order_count", "customer_since"],
+        "formula": "order_count / DATEDIFF(NOW(), customer_since)",
+        "description": "Average orders per day",
+        "business_purpose": "Customer behavior analysis",
+        "examples": ["customers.order_frequency = order_count / days_as_customer"]
+      },
+      "customer_tenure": {
+        "pattern": ["customer_since", "created_at"],
+        "formula": "DATEDIFF(NOW(), customer_since)",
+        "description": "Days since customer joined",
+        "business_purpose": "Customer lifecycle analysis",
+        "examples": ["customers.tenure_days = DATEDIFF(NOW(), customer_since)"]
+      }
+    }
+  },
+  "business_domains": {
+    "ecommerce": {
+      "key_entities": ["products", "orders", "customers", "categories", "order_items", "inventory"],
+      "key_metrics": ["revenue", "conversion_rate", "average_order_value", "customer_lifetime_value", "inventory_turnover"],
+      "common_calculations": ["total_price", "gross_margin", "available_stock", "conversion_rate"],
+      "business_rules": [
+        "Products must have inventory tracking",
+        "Orders must have valid customer and payment",
+        "Order items must reference valid products",
+        "Categories must have at least one product"
+      ]
+    },
+    "saas": {
+      "key_entities": ["users", "subscriptions", "features", "billing", "usage_logs", "plans"],
+      "key_metrics": ["mrr", "churn_rate", "activation_rate", "feature_adoption", "customer_acquisition_cost"],
+      "common_calculations": ["monthly_recurring_revenue", "churn_rate", "conversion_rate", "customer_lifetime_value"],
+      "business_rules": [
+        "Users must have active subscriptions for premium features",
+        "Usage must be tracked for billing",
+        "Subscriptions must have valid payment methods",
+        "Feature access must be controlled by subscription tier"
+      ]
+    },
+    "fintech": {
+      "key_entities": ["accounts", "transactions", "payments", "balances", "users", "cards"],
+      "key_metrics": ["transaction_volume", "fraud_rate", "settlement_time", "customer_satisfaction", "approval_rate"],
+      "common_calculations": ["account_balance", "transaction_amount", "fraud_score", "settlement_time"],
+      "business_rules": [
+        "Transactions must have valid accounts",
+        "Balances must be updated after transactions",
+        "Fraud detection must be applied to all transactions",
+        "Settlement must occur within regulatory timeframes"
+      ]
+    },
+    "fleet_management": {
+      "key_entities": ["vehicles", "drivers", "trips", "fuel_transactions", "maintenance", "employees", "departments"],
+      "key_metrics": ["fuel_efficiency", "driver_safety", "vehicle_utilization", "maintenance_cost", "trip_completion_rate"],
+      "common_calculations": ["fuel_cost_per_mile", "driver_performance_score", "vehicle_uptime", "maintenance_schedule"],
+      "business_rules": [
+        "Vehicles must have valid registration and insurance",
+        "Drivers must have valid licenses and certifications",
+        "Fuel transactions must be linked to vehicles and drivers",
+        "Maintenance must be scheduled based on mileage and time"
+      ]
+    },
+    "healthcare": {
+      "key_entities": ["patients", "appointments", "doctors", "medical_records", "prescriptions", "billing"],
+      "key_metrics": ["patient_satisfaction", "appointment_attendance", "treatment_success", "billing_accuracy"],
+      "common_calculations": ["appointment_duration", "treatment_cost", "patient_age", "days_since_last_visit"],
+      "business_rules": [
+        "Patient records must be HIPAA compliant",
+        "Appointments must have valid doctor and patient",
+        "Prescriptions must be linked to valid patients",
+        "Medical records must have audit trails"
+      ]
+    },
+    "logistics": {
+      "key_entities": ["shipments", "orders", "warehouses", "vehicles", "drivers", "routes"],
+      "key_metrics": ["delivery_time", "on_time_delivery", "fuel_efficiency", "route_optimization"],
+      "common_calculations": ["delivery_distance", "fuel_cost", "delivery_time", "route_efficiency"],
+      "business_rules": [
+        "Shipments must have valid origin and destination",
+        "Drivers must have valid licenses and vehicles",
+        "Routes must be optimized for efficiency",
+        "Delivery times must be tracked and reported"
+      ]
+    },
+    "general": {
+      "key_entities": ["users", "data", "settings", "logs", "audit_trails"],
+      "key_metrics": ["usage", "performance", "errors", "satisfaction", "security"],
+      "common_calculations": ["user_activity", "system_performance", "error_rate", "uptime_percentage"],
+      "business_rules": [
+        "Users must have proper authentication",
+        "Data must be backed up regularly",
+        "Audit trails must be maintained",
+        "Security policies must be enforced"
+      ]
+    }
+  },
+  "entity_relationships": {
+    "ecommerce": {
+      "customers": {
+        "orders": "one_to_many",
+        "reviews": "one_to_many",
+        "addresses": "one_to_many",
+        "payment_methods": "one_to_many"
+      },
+      "orders": {
+        "order_items": "one_to_many",
+        "payments": "one_to_many",
+        "shipments": "one_to_many",
+        "customer": "many_to_one"
+      },
+      "products": {
+        "order_items": "one_to_many",
+        "reviews": "one_to_many",
+        "inventory": "one_to_one",
+        "category": "many_to_one"
+      }
+    },
+    "saas": {
+      "users": {
+        "subscriptions": "one_to_many",
+        "usage_logs": "one_to_many",
+        "sessions": "one_to_many",
+        "permissions": "many_to_many"
+      },
+      "subscriptions": {
+        "billing": "one_to_many",
+        "features": "many_to_many",
+        "user": "many_to_one",
+        "plan": "many_to_one"
+      }
+    }
+  }
+} 

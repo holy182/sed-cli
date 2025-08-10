@@ -1,0 +1,126 @@
+name: SED Semantic Layer Sync
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '**/*.sql'
+      - '**/migrations/**'
+      - '**/prisma/**'
+      - '**/knexfile.js'
+      - '**/db/**'
+      - '**/schema/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.sql'
+      - '**/migrations/**'
+      - '**/prisma/**'
+      - '**/knexfile.js'
+      - '**/db/**'
+      - '**/schema/**'
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force sync even if no schema changes detected'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync-semantic-layer:
+    name: Sync SED Semantic Layer
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for change detection
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install SED globally
+        run: npm install -g .
+      
+      - name: Check for schema changes
+        id: schema-changes
+        run: |
+          # Check if any database-related files changed
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E '\.(sql|js|ts)$' | grep -E '(migration|schema|prisma|knex|db)' > /dev/null; then
+            echo "schema_changed=true" >> $GITHUB_OUTPUT
+            echo "🔄 Database schema changes detected"
+          else
+            echo "schema_changed=false" >> $GITHUB_OUTPUT
+            echo "✅ No schema changes detected"
+          fi
+        if: github.event_name == 'push'
+      
+      - name: Sync semantic layer
+        run: |
+          echo "🔄 Syncing SED semantic layer..."
+          npx sed sync --force --verbose
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        if: |
+          github.event_name == 'workflow_dispatch' || 
+          steps.schema-changes.outputs.schema_changed == 'true' ||
+          github.event_name == 'pull_request'
+      
+      - name: Commit semantic layer changes
+        run: |
+          if git diff --quiet .sed/; then
+            echo "✅ No semantic layer changes to commit"
+          else
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add .sed/
+            git commit -m "🤖 Auto-sync SED semantic layer [skip ci]"
+            git push
+            echo "✅ Semantic layer changes committed"
+          fi
+        if: github.event_name == 'push'
+      
+      - name: Create PR for semantic layer changes
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --quiet .sed/; then
+            echo "✅ No semantic layer changes to commit"
+          else
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add .sed/
+            git commit -m "🤖 Auto-sync SED semantic layer for PR #${{ github.event.number }}"
+            git push
+            echo "✅ Semantic layer changes committed to PR"
+          fi
+      
+      - name: Validate semantic layer
+        run: |
+          echo "🔍 Validating semantic layer..."
+          npx sed validate
+      
+      - name: Upload semantic layer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-layer-${{ github.sha }}
+          path: .sed/
+          retention-days: 30
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ SED semantic layer sync failed!"
+          echo "Check the logs above for details."
+          echo "You may need to run 'npx sed sync' manually." 

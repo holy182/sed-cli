@@ -2,6 +2,9 @@
 
 **SED automatically converts your raw database into an AI-ready semantic layer with intelligent business rules.**
 
+[![npm version](https://img.shields.io/npm/v/sed-cli.svg)](https://www.npmjs.com/package/sed-cli)
+[![npm downloads](https://img.shields.io/npm/dm/sed-cli.svg)](https://www.npmjs.com/package/sed-cli)
+
 SED creates a semantic layer that makes AI understand your business data instantly, with automatic business rule generation for security and compliance.
 
 ## Overview
@@ -198,8 +201,8 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ### Development Setup
 ```bash
-git clone https://github.com/your-org/sed-core.git
-cd sed-core
+git clone https://github.com/holy182/sed-cli.git
+cd sed-cli
 npm install
 npm run build
 npm test
@@ -219,6 +222,6 @@ GNU Affero General Public License v3.0 (AGPL-3.0) - see [LICENSE](LICENSE) file 
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/your-org/sed-core/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/sed-core/discussions)
-- **Documentation**: [Wiki](https://github.com/your-org/sed-core/wiki) 
+- **Issues**: [GitHub Issues](https://github.com/holy182/sed-cli/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/holy182/sed-cli/discussions)
+- **Documentation**: [Wiki](https://github.com/holy182/sed-cli/wiki) 

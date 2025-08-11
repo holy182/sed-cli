@@ -1,9 +1,10 @@
 {
-  "name": "sed-cli",
-  "version": "1.0.5",
+  "name": "sedql",
+  "version": "1.0.7",
   "description": "SED (Semantic Entity Design) - Connect AI to Your Database with Easy Integration",
   "main": "dist/index.js",
   "bin": {
+    "sedql": "dist/cli.js",
     "sed": "dist/cli.js"
   },
   "scripts": {

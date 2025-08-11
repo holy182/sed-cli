@@ -13,8 +13,8 @@
     "instructions": [
       "This semantic layer file can be edited manually to customize your AI-readable schema",
       "Add business context, improve descriptions, or fix AI-generated content",
-      "Run 'sed sync' to detect database changes and update this file",
-      "Run 'sed validate' to check if your edits are valid against the database"
+      "Run 'sedql sync' to detect database changes and update this file",
+      "Run 'sedql validate' to check if your edits are valid against the database"
     ]
   },
   "entities": [

@@ -507,7 +507,7 @@ export class SemanticLayer {
                 "This semantic layer file can be edited manually to customize your schema",
       "Add business context, improve descriptions, or fix generated content",
           "Run 'sed sync' to detect database changes and update this file",
-          "Run 'sed validate' to check if your edits are valid against the database"
+          "Run 'sedql validate' to check if your edits are valid against the database"
         ]
       }
     };

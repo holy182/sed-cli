@@ -21,9 +21,24 @@ import { v4 as uuidv4 } from 'uuid';
 const program = new Command();
 
 program
-  .name('sed')
-  .description('SED - Semantic Entity Designs - Create intelligent semantic layers from your database')
+  .name('sedql')
+  .description('SED - Semantic Entity Designs Query Language - Create intelligent semantic layers from your database')
   .version('1.0.0');
+
+// Check if the old 'sed' command was used and show deprecation warning
+const commandName = process.argv[1] ? path.basename(process.argv[1]) : '';
+if (commandName === 'sed') {
+  console.log(chalk.yellow.bold('\n⚠️  DEPRECATION WARNING ⚠️'));
+  console.log(chalk.yellow('The "sed" command is deprecated and will be removed in a future version.'));
+  console.log(chalk.yellow('Please use "sedql" instead.\n'));
+  console.log(chalk.cyan('Example:'));
+  console.log(chalk.cyan('  sedql init    # instead of: sed init'));
+  console.log(chalk.cyan('  sedql query   # instead of: sed query'));
+  console.log(chalk.cyan('  sedql build   # instead of: sed build\n'));
+  
+  // Add a small delay to ensure the warning is visible
+  setTimeout(() => {}, 2000);
+}
 
 // Global options
 program
@@ -119,7 +134,7 @@ program
       logger.info(`• Ready to query!`);
       
       logger.info('\nNext steps:');
-      logger.info('1. Run "sed query" to start querying your data');
+      logger.info('1. Run "sedql query" to start querying your data');
       logger.info('2. Use natural language to explore your database');
       
       process.exit(0);
@@ -284,7 +299,7 @@ program
       
       const context = sed.getSemanticContext();
       if (!context) {
-        logger.error('No semantic mapping available. Run "sed build" first.');
+        logger.error('No semantic mapping available. Run "sedql build" first.');
         process.exit(1);
       }
       
@@ -313,7 +328,7 @@ program
       
       const mapping = sed.getSemanticMapping();
       if (!mapping) {
-        logger.error('No semantic mapping available. Run "sed init" or "sed build" first.');
+        logger.error('No semantic mapping available. Run "sedql init" or "sedql build" first.');
         process.exit(1);
       }
       
@@ -429,7 +444,7 @@ program
         console.log(chalk.gray(`  File: ${sed.getMappingFilePath()}`));
       } else {
         console.log(chalk.yellow('  Not loaded'));
-        console.log(chalk.gray('  Run "sed init" or "sed build" to create'));
+        console.log(chalk.gray('  Run "sedql init" or "sedql build" to create'));
       }
       
       // Business rules status
@@ -482,7 +497,7 @@ program
       // Check if mapping exists
       const mapping = sed.getSemanticMapping();
       if (!mapping) {
-        logger.error('No semantic mapping available. Run "sed init" or "sed build" first.');
+        logger.error('No semantic mapping available. Run "sedql init" or "sedql build" first.');
         process.exit(1);
       }
       
@@ -847,7 +862,7 @@ program
       
       const mapping = sed.getSemanticMapping();
       if (!mapping) {
-        logger.error('No semantic mapping available. Run "sed init" or "sed build" first.');
+        logger.error('No semantic mapping available. Run "sedql init" or "sedql build" first.');
         process.exit(1);
       }
       

@@ -65,7 +65,7 @@ jobs:
       - name: Sync semantic layer
         run: |
           echo "🔄 Syncing SED semantic layer..."
-          npx sed sync --force --verbose
+          npx sedql sync --force --verbose
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DB_HOST: ${{ secrets.DB_HOST }}
@@ -109,7 +109,7 @@ jobs:
       - name: Validate semantic layer
         run: |
           echo "🔍 Validating semantic layer..."
-          npx sed validate
+          npx sedql validate
       
       - name: Upload semantic layer artifact
         uses: actions/upload-artifact@v4
@@ -123,4 +123,4 @@ jobs:
         run: |
           echo "❌ SED semantic layer sync failed!"
           echo "Check the logs above for details."
-          echo "You may need to run 'npx sed sync' manually." 
+          echo "You may need to run 'npx sedql sync' manually." 

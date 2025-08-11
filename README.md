@@ -57,7 +57,7 @@ npm install -g sed-cli
 
 ### 2. Initialize Everything
 ```bash
-npx sed init
+npx sedql init
 ```
 
 This interactive command will:
@@ -73,7 +73,7 @@ This interactive command will:
 
 ### 3. Query Your Data
 ```bash
-npx sed query "show me customer orders from last month"
+npx sedql query "show me customer orders from last month"
 ```
 
 Use natural language to query your database. SED automatically:
@@ -84,33 +84,33 @@ Use natural language to query your database. SED automatically:
 ### 4. Manage Business Rules
 ```bash
 # List all rules
-npx sed rules --list
+npx sedql rules --list
 
 # Disable a rule temporarily
-npx sed rules --disable pii-protection
+npx sedql rules --disable pii-protection
 
 # Add custom rules
-npx sed rules --add custom-rules.json
+npx sedql rules --add custom-rules.json
 ```
 
 ## CLI Commands
 
 ### Core Commands
-- `sed init` - Initialize SED with database connection and setup everything
-- `sed build` - Rebuild semantic layer and business rules
-- `sed query <query>` - Query database using natural language
-- `sed validate` - Validate semantic layer and business rules
-- `sed status` - Show current SED status and configuration
+- `sedql init` - Initialize SED with database connection and setup everything
+- `sedql build` - Rebuild semantic layer and business rules
+- `sedql query <query>` - Query database using natural language
+- `sedql validate` - Validate semantic layer and business rules
+- `sedql status` - Show current SED status and configuration
 
 ### Business Rules Management
-- `sed rules --list` - List all business rules
-- `sed rules --add <file>` - Add custom rules from JSON file
-- `sed rules --disable <rule-id>` - Disable a specific rule
-- `sed rules --enable <rule-id>` - Enable a specific rule
+- `sedql rules --list` - List all business rules
+- `sedql rules --add <file>` - Add custom rules from JSON file
+- `sedql rules --disable <rule-id>` - Disable a specific rule
+- `sedql rules --enable <rule-id>` - Enable a specific rule
 
 ### Export & Import
-- `sed export` - Export semantic layer and configuration
-- `sed import <file>` - Import configuration from file
+- `sedql export` - Export semantic layer and configuration
+- `sedql import <file>` - Import configuration from file
 
 ## Architecture
 
@@ -166,16 +166,16 @@ SED automatically creates business rules based on your database:
 ### Rule Management
 ```bash
 # See what rules exist
-sed rules --list
+sedql rules --list
 
 # Filter rules by type
-sed rules --list --type access_policy
+sedql rules --list --type access_policy
 
 # Add custom business hours rule
-sed rules --add business-hours.json
+sedql rules --add business-hours.json
 
 # Disable PII protection temporarily
-sed rules --disable pii-protection
+sedql rules --disable pii-protection
 ```
 
 ## Use Cases

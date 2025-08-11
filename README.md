@@ -1,4 +1,4 @@
-# SED (Semantic Entity Design)
+# SED (Semantic Entities Designs)
 
 **SED automatically converts your raw database into an AI-ready semantic layer with intelligent business rules.**
 

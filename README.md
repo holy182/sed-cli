@@ -4,6 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/sed-cli.svg)](https://www.npmjs.com/package/sed-cli)
 [![npm downloads](https://img.shields.io/npm/dm/sed-cli.svg)](https://www.npmjs.com/package/sed-cli)
+[![PyPI version](https://img.shields.io/pypi/v/sedql.svg)](https://pypi.org/project/sedql/)
 
 SED creates a semantic layer that makes AI understand your business data instantly, with automatic business rule generation for security and compliance.
 
@@ -51,9 +52,20 @@ SED automatically generates and enforces business rules:
 ## Quick Start
 
 ### 1. Install SED
+
+**Choose your preferred ecosystem:**
+
+**Node.js / TypeScript:**
 ```bash
 npm install -g sed-cli
 ```
+
+**Python:**
+```bash
+pip install sedql
+```
+
+*Note: Both packages provide the same SED functionality. The Python package includes the full CLI integration.*
 
 ### 2. Initialize Everything
 ```bash
@@ -194,6 +206,49 @@ sedql rules --disable pii-protection
 - Understand complex database schemas
 - Discover business entities and relationships
 - Generate semantic layer for applications
+
+## Python SDK
+
+SED is also available as a Python package (`sedql`) that provides the same functionality through a Python interface:
+
+### Installation
+```bash
+pip install sedql
+```
+
+### Basic Usage
+```python
+from sedql import SEDClient
+
+# Initialize SED client
+sed = SEDClient()
+
+# Initialize with database connection
+sed.init()
+
+# Build semantic layer
+sed.build()
+
+# Query with natural language
+result = sed.query("Show me customers with high revenue")
+print(result)
+
+# Query with AI integration
+ai_result = sed.query_with_ai({
+    "natural_language": "Forecast revenue for Q3 2024",
+    "ai_model": "gpt-4",
+    "business_context": "Revenue forecasting for Q3 planning"
+})
+```
+
+### Features
+- **Full CLI Integration**: Access all SED CLI features from Python
+- **Business Rules Engine**: Query validation and governance
+- **Schema Change Detection**: Automatic change monitoring
+- **Security Validation**: Business rule enforcement
+- **AI Integration Framework**: Hooks for your AI providers
+
+For complete Python documentation, see: [sedql Python Package](https://pypi.org/project/sedql/)
 
 ## Contributing
 

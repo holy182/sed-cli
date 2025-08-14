@@ -11,7 +11,7 @@ export interface PIIDetectionResult {
   compliance: ComplianceRequirement[];
   sampleValues?: string[];
   patterns?: string[];
-  metadata?: Record<string, string | number | boolean>;
+  metadata?: Record<string, any>;
 }
 
 export enum PIIType {
@@ -66,29 +66,6 @@ export interface PIIDetectionConfig {
   maxProcessingTime: number;
 }
 
-export interface DatabaseColumn {
-  name: string;
-  type: string;
-  isNullable: boolean;
-  isPrimaryKey?: boolean;
-  isForeignKey?: boolean;
-  isUnique?: boolean;
-  defaultValue?: string;
-}
-
-export interface DatabaseTable {
-  name: string;
-  columns: DatabaseColumn[];
-  rowCount?: number;
-  schema?: string;
-}
-
-export interface DatabaseSchema {
-  tables: DatabaseTable[];
-  version?: string;
-  timestamp?: Date;
-}
-
 export class PIIDetector {
   private config: PIIDetectionConfig;
   private patterns: Map<PIIType, RegExp[]>;
@@ -108,7 +85,7 @@ export class PIIDetector {
   /**
    * Detect PII in database schema and sample data
    */
-  async detectPII(schema: DatabaseSchema, sampleData?: Record<string, string[]>): Promise<PIIDetectionResult[]> {
+  async detectPII(schema: any, sampleData?: Record<string, any[]>): Promise<PIIDetectionResult[]> {
     const results: PIIDetectionResult[] = [];
     const startTime = Date.now();
 
@@ -140,9 +117,9 @@ export class PIIDetector {
    * Detect PII in a specific column using multiple detection methods
    */
   private async detectPIIInColumn(
-    column: DatabaseColumn, 
-    table: DatabaseTable, 
-    sampleData?: Record<string, string[]>
+    column: any, 
+    table: any, 
+    sampleData?: Record<string, any[]>
   ): Promise<PIIDetectionResult[]> {
     const results: PIIDetectionResult[] = [];
     const columnName = column.name.toLowerCase();
@@ -185,7 +162,7 @@ export class PIIDetector {
   /**
    * Pattern-based PII detection using regex patterns
    */
-  private detectByPatterns(columnName: string, tableName: string, column: DatabaseColumn): PIIDetectionResult[] {
+  private detectByPatterns(columnName: string, tableName: string, column: any): PIIDetectionResult[] {
     const results: PIIDetectionResult[] = [];
 
     for (const [piiType, patterns] of this.patterns.entries()) {
@@ -220,32 +197,27 @@ export class PIIDetector {
   /**
    * Semantic analysis-based PII detection
    */
-  private detectBySemanticAnalysis(columnName: string, tableName: string, column: DatabaseColumn): PIIDetectionResult[] {
+  private detectBySemanticAnalysis(columnName: string, tableName: string, column: any): PIIDetectionResult[] {
     const results: PIIDetectionResult[] = [];
 
-    for (const [piiType, patterns] of this.semanticPatterns.entries()) {
-      for (const pattern of patterns) {
-        if (columnName.includes(pattern.toLowerCase())) {
-          const confidence = this.calculateSemanticConfidence(columnName, pattern, piiType);
-          
-          if (confidence >= this.config.confidenceThreshold) {
-            results.push({
-              column: column.name,
-              table: tableName,
-              piiType,
-              confidence,
-              detectionMethod: DetectionMethod.SEMANTIC_ANALYSIS,
-              riskLevel: this.getRiskLevel(piiType),
-              compliance: this.complianceMap.get(piiType) || [],
-              patterns: [pattern],
-              metadata: {
-                semanticPattern: pattern,
-                columnType: column.type,
-                tableContext: tableName
-              }
-            });
+    for (const [piiType, semanticPatterns] of this.semanticPatterns.entries()) {
+      const semanticScore = this.calculateSemanticScore(columnName, tableName, semanticPatterns);
+      
+      if (semanticScore >= this.config.confidenceThreshold) {
+        results.push({
+          column: column.name,
+          table: tableName,
+          piiType,
+          confidence: semanticScore,
+          detectionMethod: DetectionMethod.SEMANTIC_ANALYSIS,
+          riskLevel: this.getRiskLevel(piiType),
+          compliance: this.complianceMap.get(piiType) || [],
+          metadata: {
+            semanticPatterns,
+            columnType: column.type,
+            tableContext: tableName
           }
-        }
+        });
       }
     }
 
@@ -258,36 +230,35 @@ export class PIIDetector {
   private async detectByDataProfiling(
     columnName: string, 
     tableName: string, 
-    column: DatabaseColumn, 
-    sampleData: Record<string, string[]>
+    column: any, 
+    sampleData: Record<string, any[]>
   ): Promise<PIIDetectionResult[]> {
     const results: PIIDetectionResult[] = [];
-    const data = sampleData[columnName] || [];
+    const columnData = sampleData[column.name] || [];
 
-    if (data.length === 0) {
-      return results;
-    }
+    if (columnData.length === 0) return results;
 
-    // Analyze data patterns
-    const dataProfile = this.analyzeDataProfile(data, column.type);
+    // Analyze data characteristics
+    const dataProfile = this.analyzeDataProfile(columnData, column.type);
     
+    // Check for PII patterns in actual data
     for (const [piiType, patterns] of this.patterns.entries()) {
-      const matchScore = this.calculateDataMatchScore(data, patterns, piiType);
+      const dataMatchScore = this.calculateDataMatchScore(columnData, patterns, piiType);
       
-      if (matchScore >= this.config.confidenceThreshold) {
+      if (dataMatchScore >= this.config.confidenceThreshold) {
         results.push({
           column: column.name,
           table: tableName,
           piiType,
-          confidence: matchScore,
+          confidence: dataMatchScore,
           detectionMethod: DetectionMethod.DATA_PROFILING,
           riskLevel: this.getRiskLevel(piiType),
           compliance: this.complianceMap.get(piiType) || [],
-          sampleValues: this.getSampleValues(data, 5),
+          sampleValues: this.getSampleValues(columnData, 5),
           metadata: {
             dataProfile,
-            sampleSize: data.length,
-            columnType: column.type
+            sampleSize: columnData.length,
+            uniqueValues: new Set(columnData).size
           }
         });
       }
@@ -297,30 +268,54 @@ export class PIIDetector {
   }
 
   /**
-   * ML-based PII detection (placeholder implementation)
+   * ML-based PII detection (simplified implementation)
    */
   private async detectByML(
     columnName: string, 
     tableName: string, 
-    column: DatabaseColumn, 
-    sampleData?: Record<string, string[]>
+    column: any, 
+    sampleData?: Record<string, any[]>
   ): Promise<PIIDetectionResult[]> {
-    // This would integrate with actual ML models
-    // For now, return empty results
-    return [];
+    // This would integrate with a real ML model in production
+    // For now, we'll use a simplified heuristic approach
+    const results: PIIDetectionResult[] = [];
+    
+    const mlFeatures = this.extractMLFeatures(columnName, tableName, column, sampleData);
+    const mlScore = this.calculateMLScore(mlFeatures);
+    
+    if (mlScore >= this.config.confidenceThreshold) {
+      // Determine most likely PII type based on features
+      const predictedType = this.predictPIIType(mlFeatures);
+      
+      results.push({
+        column: column.name,
+        table: tableName,
+        piiType: predictedType,
+        confidence: mlScore,
+        detectionMethod: DetectionMethod.ML_CLASSIFICATION,
+        riskLevel: this.getRiskLevel(predictedType),
+        compliance: this.complianceMap.get(predictedType) || [],
+        metadata: {
+          mlFeatures,
+          predictedType,
+          modelVersion: '1.0.0'
+        }
+      });
+    }
+
+    return results;
   }
 
   /**
    * Context-based PII detection
    */
-  private detectByContext(columnName: string, tableName: string, column: DatabaseColumn, table: DatabaseTable): PIIDetectionResult[] {
+  private detectByContext(columnName: string, tableName: string, column: any, table: any): PIIDetectionResult[] {
     const results: PIIDetectionResult[] = [];
-    
+
     // Analyze table context
     const tableContext = this.analyzeTableContext(tableName, table);
-    const columnContext = this.analyzeColumnContext(columnName, table);
-
-    // Check for PII indicators in context
+    
+    // Check for context-specific PII patterns
     for (const [piiType, patterns] of this.patterns.entries()) {
       const contextScore = this.calculateContextScore(columnName, tableContext, piiType);
       
@@ -335,8 +330,7 @@ export class PIIDetector {
           compliance: this.complianceMap.get(piiType) || [],
           metadata: {
             tableContext,
-            columnContext,
-            columnType: column.type
+            columnContext: this.analyzeColumnContext(columnName, table)
           }
         });
       }
@@ -346,185 +340,452 @@ export class PIIDetector {
   }
 
   /**
-   * Calculate pattern-based confidence score
+   * Initialize regex patterns for PII detection
    */
-  private calculatePatternConfidence(columnName: string, pattern: RegExp, piiType: PIIType): number {
-    let score = 0.5; // Base score
-    
-    // Pattern strength
-    if (pattern.source.length > 10) score += 0.2;
-    if (pattern.source.includes('\\b')) score += 0.1; // Word boundaries
-    
-    // Column name relevance
-    if (columnName.includes(piiType)) score += 0.2;
-    
-    return Math.min(1.0, score);
+  private initializePatterns(): void {
+    // Email patterns
+    this.patterns.set(PIIType.EMAIL, [
+      /email/i,
+      /e-mail/i,
+      /mail/i,
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i
+    ]);
+
+    // Phone patterns
+    this.patterns.set(PIIType.PHONE, [
+      /phone/i,
+      /tel/i,
+      /mobile/i,
+      /cell/i,
+      /^(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}$/,
+      /^\d{10,11}$/
+    ]);
+
+    // SSN patterns
+    this.patterns.set(PIIType.SSN, [
+      /ssn/i,
+      /social/i,
+      /security/i,
+      /^\d{3}-\d{2}-\d{4}$/,
+      /^\d{9}$/
+    ]);
+
+    // Credit card patterns
+    this.patterns.set(PIIType.CREDIT_CARD, [
+      /credit/i,
+      /card/i,
+      /cc/i,
+      /payment/i,
+      /^\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}$/,
+      /^\d{13,19}$/
+    ]);
+
+    // Address patterns
+    this.patterns.set(PIIType.ADDRESS, [
+      /address/i,
+      /street/i,
+      /city/i,
+      /state/i,
+      /zip/i,
+      /postal/i,
+      /country/i
+    ]);
+
+    // Name patterns
+    this.patterns.set(PIIType.NAME, [
+      /name/i,
+      /first/i,
+      /last/i,
+      /full/i,
+      /given/i,
+      /surname/i
+    ]);
+
+    // Date of birth patterns
+    this.patterns.set(PIIType.DATE_OF_BIRTH, [
+      /birth/i,
+      /dob/i,
+      /born/i,
+      /age/i
+    ]);
+
+    // Driver's license patterns
+    this.patterns.set(PIIType.DRIVERS_LICENSE, [
+      /license/i,
+      /dl/i,
+      /drivers/i,
+      /permit/i
+    ]);
+
+    // Passport patterns
+    this.patterns.set(PIIType.PASSPORT, [
+      /passport/i,
+      /pass/i
+    ]);
+
+    // IP address patterns
+    this.patterns.set(PIIType.IP_ADDRESS, [
+      /ip/i,
+      /address/i,
+      /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
+    ]);
+
+    // MAC address patterns
+    this.patterns.set(PIIType.MAC_ADDRESS, [
+      /mac/i,
+      /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/
+    ]);
+
+    // Vehicle ID patterns
+    this.patterns.set(PIIType.VEHICLE_ID, [
+      /vin/i,
+      /vehicle/i,
+      /plate/i,
+      /license_plate/i
+    ]);
+
+    // Medical ID patterns
+    this.patterns.set(PIIType.MEDICAL_ID, [
+      /medical/i,
+      /patient/i,
+      /health/i,
+      /record/i
+    ]);
+
+    // Financial account patterns
+    this.patterns.set(PIIType.FINANCIAL_ACCOUNT, [
+      /account/i,
+      /bank/i,
+      /routing/i,
+      /swift/i,
+      /iban/i
+    ]);
   }
 
   /**
-   * Calculate semantic confidence score
+   * Initialize semantic patterns for context-based detection
    */
-  private calculateSemanticConfidence(columnName: string, pattern: string, piiType: PIIType): number {
-    let score = 0.4; // Base score
-    
-    // Pattern match strength
-    if (columnName === pattern.toLowerCase()) score += 0.4;
-    else if (columnName.includes(pattern.toLowerCase())) score += 0.2;
-    
-    // PII type relevance
-    if (columnName.includes(piiType)) score += 0.2;
-    
-    return Math.min(1.0, score);
+  private initializeSemanticPatterns(): void {
+    this.semanticPatterns.set(PIIType.EMAIL, ['user', 'contact', 'customer', 'client', 'member']);
+    this.semanticPatterns.set(PIIType.PHONE, ['contact', 'customer', 'support', 'emergency']);
+    this.semanticPatterns.set(PIIType.SSN, ['employee', 'person', 'individual', 'citizen']);
+    this.semanticPatterns.set(PIIType.CREDIT_CARD, ['payment', 'billing', 'transaction', 'purchase']);
+    this.semanticPatterns.set(PIIType.ADDRESS, ['shipping', 'billing', 'location', 'delivery']);
+    this.semanticPatterns.set(PIIType.NAME, ['person', 'user', 'customer', 'employee']);
+    this.semanticPatterns.set(PIIType.DATE_OF_BIRTH, ['person', 'user', 'customer', 'employee']);
+    this.semanticPatterns.set(PIIType.DRIVERS_LICENSE, ['driver', 'vehicle', 'transport']);
+    this.semanticPatterns.set(PIIType.PASSPORT, ['travel', 'international', 'border']);
+    this.semanticPatterns.set(PIIType.IP_ADDRESS, ['network', 'connection', 'session']);
+    this.semanticPatterns.set(PIIType.MAC_ADDRESS, ['device', 'hardware', 'network']);
+    this.semanticPatterns.set(PIIType.VEHICLE_ID, ['vehicle', 'fleet', 'transport']);
+    this.semanticPatterns.set(PIIType.MEDICAL_ID, ['patient', 'health', 'medical']);
+    this.semanticPatterns.set(PIIType.FINANCIAL_ACCOUNT, ['bank', 'financial', 'payment']);
+  }
+
+  /**
+   * Initialize compliance requirements map
+   */
+  private initializeComplianceMap(): void {
+    // GDPR compliance
+    this.complianceMap.set(PIIType.EMAIL, [
+      {
+        regulation: 'GDPR',
+        requirement: 'Article 32 - Security of processing',
+        severity: RiskLevel.HIGH,
+        description: 'Personal data must be protected with appropriate security measures'
+      }
+    ]);
+
+    this.complianceMap.set(PIIType.SSN, [
+      {
+        regulation: 'GDPR',
+        requirement: 'Article 9 - Special categories of personal data',
+        severity: RiskLevel.CRITICAL,
+        description: 'National identification numbers require special protection'
+      }
+    ]);
+
+    // HIPAA compliance
+    this.complianceMap.set(PIIType.MEDICAL_ID, [
+      {
+        regulation: 'HIPAA',
+        requirement: '45 CFR 164.312 - Technical safeguards',
+        severity: RiskLevel.CRITICAL,
+        description: 'Protected health information must be encrypted and secured'
+      }
+    ]);
+
+    // PCI DSS compliance
+    this.complianceMap.set(PIIType.CREDIT_CARD, [
+      {
+        regulation: 'PCI DSS',
+        requirement: 'Requirement 3 - Protect stored cardholder data',
+        severity: RiskLevel.CRITICAL,
+        description: 'Cardholder data must be encrypted and protected'
+      }
+    ]);
+  }
+
+  /**
+   * Calculate pattern matching confidence
+   */
+  private calculatePatternConfidence(columnName: string, pattern: RegExp, piiType: PIIType): number {
+    let confidence = 0.5; // Base confidence
+
+    // Exact match boosts confidence
+    if (pattern.test(columnName)) {
+      confidence += 0.3;
+    }
+
+    // Pattern complexity affects confidence
+    if (pattern.source.length > 20) {
+      confidence += 0.1;
+    }
+
+    // Column name length affects confidence
+    if (columnName.length > 10) {
+      confidence += 0.1;
+    }
+
+    return Math.min(confidence, 1.0);
+  }
+
+  /**
+   * Calculate semantic analysis confidence
+   */
+  private calculateSemanticScore(columnName: string, tableName: string, semanticPatterns: string[]): number {
+    let score = 0;
+    let totalPatterns = semanticPatterns.length;
+
+    for (const pattern of semanticPatterns) {
+      if (columnName.includes(pattern) || tableName.includes(pattern)) {
+        score += 1;
+      }
+    }
+
+    return score / totalPatterns;
+  }
+
+  /**
+   * Analyze data profile for patterns
+   */
+  private analyzeDataProfile(data: any[], columnType: string): Record<string, any> {
+    const profile: Record<string, any> = {
+      totalCount: data.length,
+      uniqueCount: new Set(data).size,
+      nullCount: data.filter(d => d === null || d === undefined).length,
+      emptyCount: data.filter(d => d === '' || d === ' ').length,
+      avgLength: 0,
+      minLength: Infinity,
+      maxLength: 0,
+      commonPatterns: []
+    };
+
+    if (data.length > 0) {
+      const lengths = data
+        .filter(d => d !== null && d !== undefined)
+        .map(d => String(d).length);
+      
+      profile.avgLength = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+      profile.minLength = Math.min(...lengths);
+      profile.maxLength = Math.max(...lengths);
+    }
+
+    return profile;
   }
 
   /**
    * Calculate data match score
    */
-  private calculateDataMatchScore(data: string[], patterns: RegExp[], piiType: PIIType): number {
-    if (data.length === 0) return 0;
-    
-    let totalScore = 0;
+  private calculateDataMatchScore(data: any[], patterns: RegExp[], piiType: PIIType): number {
+    let matchCount = 0;
     const sampleSize = Math.min(data.length, this.config.sampleSize);
-    
+
     for (let i = 0; i < sampleSize; i++) {
-      const value = data[i];
-      let valueScore = 0;
-      
+      const value = String(data[i]);
       for (const pattern of patterns) {
         if (pattern.test(value)) {
-          valueScore = Math.max(valueScore, 0.8);
+          matchCount++;
+          break;
         }
       }
-      
-      totalScore += valueScore;
     }
-    
-    return totalScore / sampleSize;
+
+    return matchCount / sampleSize;
   }
 
   /**
-   * Calculate context score
+   * Extract ML features for classification
    */
-  private calculateContextScore(columnName: string, tableContext: Record<string, boolean>, piiType: PIIType): number {
-    let score = 0.3; // Base score
-    
-    // Table context indicators
-    if (tableContext.hasPrimaryKey) score += 0.1;
-    if (tableContext.hasForeignKeys) score += 0.1;
-    
-    // Column context indicators
-    if (columnName.includes('id') || columnName.includes('key')) score += 0.2;
-    if (columnName.includes('name') || columnName.includes('email')) score += 0.2;
-    
-    return Math.min(1.0, score);
-  }
-
-  /**
-   * Get risk level for PII type
-   */
-  private getRiskLevel(piiType: PIIType): RiskLevel {
-    const highRiskTypes = [PIIType.SSN, PIIType.CREDIT_CARD, PIIType.PASSWORD, PIIType.BIOMETRIC];
-    const mediumRiskTypes = [PIIType.EMAIL, PIIType.PHONE, PIIType.ADDRESS, PIIType.DATE_OF_BIRTH];
-    
-    if (highRiskTypes.includes(piiType)) return RiskLevel.HIGH;
-    if (mediumRiskTypes.includes(piiType)) return RiskLevel.MEDIUM;
-    return RiskLevel.LOW;
-  }
-
-  /**
-   * Analyze data profile
-   */
-  private analyzeDataProfile(data: string[], columnType: string): Record<string, string | number | boolean> {
-    const profile: Record<string, string | number | boolean> = {
-      totalValues: data.length,
-      uniqueValues: new Set(data).size,
-      nullValues: data.filter(v => v === null || v === undefined || v === '').length,
-      avgLength: data.reduce((sum, v) => sum + (v?.length || 0), 0) / data.length,
-      columnType
+  private extractMLFeatures(
+    columnName: string, 
+    tableName: string, 
+    column: any, 
+    sampleData?: Record<string, any[]>
+  ): Record<string, any> {
+    return {
+      columnNameLength: columnName.length,
+      tableNameLength: tableName.length,
+      columnType: column.type,
+      isNullable: column.isNullable,
+      hasUnderscores: columnName.includes('_'),
+      hasNumbers: /\d/.test(columnName),
+      wordCount: columnName.split(/[_\s]/).length,
+      commonWords: this.getCommonWords(columnName),
+      dataType: column.type,
+      ...(sampleData && this.extractDataFeatures(sampleData[column.name] || []))
     };
-    
-    return profile;
   }
 
   /**
-   * Extract data features for ML analysis
+   * Calculate ML score (simplified)
    */
-  private extractDataFeatures(data: string[]): Record<string, string | number | boolean> {
-    const features: Record<string, string | number | boolean> = {
-      sampleSize: data.length,
-      hasNulls: data.some(v => v === null || v === undefined || v === ''),
-      avgLength: data.reduce((sum, v) => sum + (v?.length || 0), 0) / data.length,
-      maxLength: Math.max(...data.map(v => v?.length || 0)),
-      minLength: Math.min(...data.map(v => v?.length || 0))
-    };
-    
-    return features;
+  private calculateMLScore(features: Record<string, any>): number {
+    let score = 0.3; // Base score for ML detection
+
+    // Column name features
+    if (features.columnNameLength > 5) score += 0.1;
+    if (features.hasUnderscores) score += 0.1;
+    if (features.wordCount > 1) score += 0.1;
+
+    // Data type features
+    if (features.dataType === 'varchar' || features.dataType === 'text') score += 0.2;
+    if (features.dataType === 'int' || features.dataType === 'bigint') score += 0.1;
+
+    // Data features
+    if (features.uniqueRatio > 0.5) score += 0.2;
+    if (features.avgLength > 10) score += 0.1;
+
+    // Boost score for common PII patterns
+    if (features.commonWords && features.commonWords.length > 0) {
+      score += 0.2;
+    }
+
+    return Math.min(score, 1.0);
   }
 
   /**
-   * Get sample values from data
+   * Predict PII type based on features
    */
-  private getSampleValues(data: string[], count: number): string[] {
-    const shuffled = [...data].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, Math.min(count, data.length));
+  private predictPIIType(features: Record<string, any>): PIIType {
+    // Simplified prediction logic
+    if (features.commonWords.includes('email')) return PIIType.EMAIL;
+    if (features.commonWords.includes('phone')) return PIIType.PHONE;
+    if (features.commonWords.includes('ssn')) return PIIType.SSN;
+    if (features.commonWords.includes('credit')) return PIIType.CREDIT_CARD;
+    if (features.commonWords.includes('address')) return PIIType.ADDRESS;
+    if (features.commonWords.includes('name')) return PIIType.NAME;
+    
+    return PIIType.EMAIL; // Default
   }
 
   /**
    * Analyze table context
    */
-  private analyzeTableContext(tableName: string, table: DatabaseTable): Record<string, boolean> {
+  private analyzeTableContext(tableName: string, table: any): Record<string, any> {
     return {
-      hasPrimaryKey: table.columns?.some((c: DatabaseColumn) => c.isPrimaryKey) || false,
-      hasForeignKeys: table.columns?.some((c: DatabaseColumn) => c.isForeignKey) || false,
-      isUserTable: tableName.includes('user') || tableName.includes('customer') || tableName.includes('account'),
-      isTransactionTable: tableName.includes('order') || tableName.includes('payment') || tableName.includes('transaction'),
-      isConfigurationTable: tableName.includes('config') || tableName.includes('setting') || tableName.includes('option')
+      tableName,
+      columnCount: table.columns?.length || 0,
+      hasPrimaryKey: table.columns?.some((c: any) => c.isPrimaryKey) || false,
+      hasForeignKeys: table.columns?.some((c: any) => c.isForeignKey) || false,
+      commonWords: this.getCommonWords(tableName)
     };
   }
 
   /**
    * Analyze column context
    */
-  private analyzeColumnContext(columnName: string, table: DatabaseTable): Record<string, boolean> {
-    const column = table.columns?.find((c: DatabaseColumn) => c.name === columnName);
+  private analyzeColumnContext(columnName: string, table: any): Record<string, any> {
     return {
-      isPrimaryKey: column?.isPrimaryKey || false,
-      isForeignKey: column?.isForeignKey || false,
-      isUnique: column?.isUnique || false,
-      isNullable: column?.isNullable || true
+      columnName,
+      isPrimaryKey: table.columns?.find((c: any) => c.name === columnName)?.isPrimaryKey || false,
+      isForeignKey: table.columns?.find((c: any) => c.name === columnName)?.isForeignKey || false,
+      isUnique: table.columns?.find((c: any) => c.name === columnName)?.isUnique || false,
+      isNullable: table.columns?.find((c: any) => c.name === columnName)?.isNullable || true
     };
   }
 
   /**
-   * Generate PII protection rules
+   * Calculate context score
    */
-  generatePIIRules(detectionResults: PIIDetectionResult[]): Array<{
-    id: string;
-    name: string;
-    description: string;
-    type: string;
-    severity: string;
-    condition: Record<string, unknown>;
-    action: Record<string, unknown>;
-    confidence: number;
-  }> {
-    return detectionResults.map(result => ({
-      id: `pii-protection-${result.column}-${result.piiType}`,
-      name: `PII Protection - ${result.column}`,
-      description: `Protect ${result.piiType} data in column ${result.column}`,
-      type: 'pii_protection',
-      severity: result.riskLevel,
-      condition: {
-        type: 'column',
-        column: result.column,
-        table: result.table
-      },
-      action: {
-        type: 'deny',
-        message: `Access to ${result.piiType} data in ${result.column} is not allowed`
-      },
-      confidence: result.confidence
-    }));
+  private calculateContextScore(columnName: string, tableContext: Record<string, any>, piiType: PIIType): number {
+    let score = 0.3; // Base score
+
+    // Table context scoring
+    if (tableContext.commonWords.some((word: string) => 
+      ['user', 'customer', 'person', 'employee'].includes(word)
+    )) {
+      score += 0.2;
+    }
+
+    // Column context scoring
+    if (columnName.includes('id') && !columnName.includes('user_id')) {
+      score -= 0.1; // Likely not PII if it's a generic ID
+    }
+
+    return Math.max(0, Math.min(score, 1.0));
+  }
+
+  /**
+   * Get common words from text
+   */
+  private getCommonWords(text: string): string[] {
+    return text.toLowerCase()
+      .split(/[_\s]/)
+      .filter(word => word.length > 2)
+      .slice(0, 5);
+  }
+
+  /**
+   * Extract data features for ML
+   */
+  private extractDataFeatures(data: any[]): Record<string, any> {
+    if (data.length === 0) return {};
+
+    const profile = this.analyzeDataProfile(data, 'unknown');
+    return {
+      uniqueRatio: profile.uniqueCount / profile.totalCount,
+      avgLength: profile.avgLength,
+      minLength: profile.minLength,
+      maxLength: profile.maxLength
+    };
+  }
+
+  /**
+   * Get sample values for analysis
+   */
+  private getSampleValues(data: any[], count: number): string[] {
+    return data
+      .filter(d => d !== null && d !== undefined)
+      .slice(0, count)
+      .map(d => String(d));
+  }
+
+  /**
+   * Get risk level for PII type
+   */
+  private getRiskLevel(piiType: PIIType): RiskLevel {
+    const riskMap: Record<PIIType, RiskLevel> = {
+      [PIIType.SSN]: RiskLevel.CRITICAL,
+      [PIIType.CREDIT_CARD]: RiskLevel.HIGH,
+      [PIIType.MEDICAL_ID]: RiskLevel.CRITICAL,
+      [PIIType.DRIVERS_LICENSE]: RiskLevel.HIGH,
+      [PIIType.PASSPORT]: RiskLevel.HIGH,
+      [PIIType.FINANCIAL_ACCOUNT]: RiskLevel.HIGH,
+      [PIIType.EMAIL]: RiskLevel.MEDIUM,
+      [PIIType.PHONE]: RiskLevel.MEDIUM,
+      [PIIType.ADDRESS]: RiskLevel.MEDIUM,
+      [PIIType.NAME]: RiskLevel.MEDIUM,
+      [PIIType.DATE_OF_BIRTH]: RiskLevel.MEDIUM,
+      [PIIType.IP_ADDRESS]: RiskLevel.LOW,
+      [PIIType.MAC_ADDRESS]: RiskLevel.LOW,
+      [PIIType.VEHICLE_ID]: RiskLevel.LOW,
+      [PIIType.BIOMETRIC]: RiskLevel.CRITICAL,
+      [PIIType.LOCATION]: RiskLevel.MEDIUM,
+      [PIIType.BEHAVIORAL]: RiskLevel.LOW
+    };
+
+    return riskMap[piiType] || RiskLevel.MEDIUM;
   }
 
   /**
@@ -543,66 +804,43 @@ export class PIIDetector {
   }
 
   /**
-   * Initialize regex patterns for PII detection
+   * Generate PII protection rules from detection results
    */
-  private initializePatterns(): void {
-    this.patterns.set(PIIType.EMAIL, [
-      /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/,
-      /email/i,
-      /mail/i
-    ]);
-    
-    this.patterns.set(PIIType.PHONE, [
-      /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/,
-      /phone/i,
-      /tel/i,
-      /mobile/i
-    ]);
-    
-    this.patterns.set(PIIType.SSN, [
-      /\b\d{3}-\d{2}-\d{4}\b/,
-      /ssn/i,
-      /social/i
-    ]);
-    
-    this.patterns.set(PIIType.CREDIT_CARD, [
-      /\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/,
-      /credit/i,
-      /card/i,
-      /cc/i
-    ]);
-  }
-
-  /**
-   * Initialize semantic patterns
-   */
-  private initializeSemanticPatterns(): void {
-    this.semanticPatterns.set(PIIType.EMAIL, ['email', 'mail', 'e-mail']);
-    this.semanticPatterns.set(PIIType.PHONE, ['phone', 'telephone', 'mobile', 'cell']);
-    this.semanticPatterns.set(PIIType.NAME, ['name', 'firstname', 'lastname', 'fullname']);
-    this.semanticPatterns.set(PIIType.ADDRESS, ['address', 'street', 'city', 'zip']);
-  }
-
-  /**
-   * Initialize compliance requirements
-   */
-  private initializeComplianceMap(): void {
-    this.complianceMap.set(PIIType.EMAIL, [
-      {
-        regulation: 'GDPR',
-        requirement: 'Personal data protection',
-        severity: RiskLevel.MEDIUM,
-        description: 'Email addresses are considered personal data under GDPR'
-      }
-    ]);
-    
-    this.complianceMap.set(PIIType.SSN, [
-      {
-        regulation: 'HIPAA',
-        requirement: 'Protected health information',
-        severity: RiskLevel.HIGH,
-        description: 'SSNs are considered PHI under HIPAA'
-      }
-    ]);
+  generatePIIRules(detectionResults: PIIDetectionResult[]): any[] {
+    return detectionResults
+      .filter(result => result.confidence >= this.config.confidenceThreshold)
+      .map(result => ({
+        id: `pii-protection-${result.table}-${result.column}`,
+        name: `PII Protection - ${result.piiType.toUpperCase()}`,
+        description: `Protect ${result.piiType} data in ${result.table}.${result.column}`,
+        type: 'pii_protection',
+        severity: result.riskLevel === RiskLevel.CRITICAL ? 'block' : 'warning',
+        scope: 'column',
+        trigger: 'before_query',
+        enabled: true,
+        priority: result.riskLevel === RiskLevel.CRITICAL ? 1000 : 800,
+        condition: {
+          type: 'pattern',
+          pattern: `.*${result.column}.*`
+        },
+        action: {
+          type: result.riskLevel === RiskLevel.CRITICAL ? 'deny' : 'modify',
+          message: `Access to ${result.piiType} data is restricted`,
+          code: result.riskLevel === RiskLevel.CRITICAL ? 
+            null : 
+            `SELECT * FROM {originalQuery} WHERE ${result.column} IS NULL`
+        },
+        tags: ['auto-generated', 'pii', 'security'],
+        version: '1.0.0',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: 'sed-pii-detector',
+        metadata: {
+          piiType: result.piiType,
+          confidence: result.confidence,
+          detectionMethod: result.detectionMethod,
+          compliance: result.compliance
+        }
+      }));
   }
 }

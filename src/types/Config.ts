@@ -8,7 +8,7 @@ export interface DatabaseConfig {
   username?: string;
   password?: string;
   connectionString?: string;
-  options?: Record<string, string | number | boolean>;
+  options?: Record<string, any>;
 }
 
 export interface AIConfig {
@@ -16,7 +16,7 @@ export interface AIConfig {
   apiKey?: string;
   model?: string;
   endpoint?: string;
-  options?: Record<string, string | number | boolean>;
+  options?: Record<string, any>;
 }
 
 // Internal discovery configuration - not exposed to users
@@ -42,8 +42,4 @@ export interface Config {
   ai?: AIConfig; // Optional - SED handles AI internally for semantic layer creation
   cache?: CacheConfig;
   discovery?: DiscoveryConfig; // Internal - auto-configured
-  rules?: {
-    auto_generate?: boolean;
-    enabled_by_default?: boolean;
-  };
 } 

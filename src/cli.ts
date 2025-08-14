@@ -1,12 +1,12 @@
 #!/usr/bin/env node
+// Cross-platform shebang - will work on Windows, macOS, and Linux
 
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { SED } from './index';
-import { Config, DatabaseConfig } from './types/Config';
-import { SemanticMapping, BusinessLogicAnalysis } from './types/SemanticMapping';
 import * as readline from 'readline';
 import { validateFilePath, validateDatabaseConfig } from './utils/validation';
 import { handleError } from './utils/errors';
@@ -15,10 +15,15 @@ import { logger } from './utils/logger';
 import { DatabaseDiagnostics } from './utils/DatabaseDiagnostics';
 import { trackBuild, trackSearch, trackInit, trackValidate, trackExport, getAnalyticsSummary } from './utils/analytics';
 import { SchemaChangeDetector } from './semantic/SchemaChangeDetector';
-import { ChangeSeverity, ChangeImpact, SchemaChange } from './types/SchemaChange';
+import { ChangeSeverity, ChangeImpact } from './types/SchemaChange';
 import { BusinessRuleEngine } from './semantic/BusinessRuleEngine';
-import { RuleType, RuleSeverity, RuleScope, RuleTrigger, BusinessRule as ImportedBusinessRule } from './types/BusinessRules';
+import { RuleType, RuleSeverity, RuleScope, RuleTrigger } from './types/BusinessRules';
 import { v4 as uuidv4 } from 'uuid';
+import { SemanticMapping, SemanticEntity, SemanticAttribute, QueryContext } from './types/SemanticMapping';
+import { PIIDetector, PIIDetectionConfig } from './security/PIIDetector';
+import { BusinessLogicAnalyzer } from './business/BusinessLogicAnalyzer';
+import { BusinessLogicAnalysis as DetectorBusinessLogicAnalysis } from './patterns/BusinessLogicDetector';
+import { ConditionType, ActionType } from './types/BusinessRules';
 
 const program = new Command();
 
@@ -44,7 +49,7 @@ if (commandName === 'sed') {
 
 // Global options
 program
-  .option('-c, --config <path>', 'Path to config file', process.env.SED_CONFIG_PATH || 'sed.config.json');
+  .option('-c, --config <path>', 'Path to config file', process.env.SED_CONFIG_PATH || path.join(process.cwd(), 'sed.config.json'));
 
 // Init command - Create configuration file and set up everything
 program
@@ -112,7 +117,7 @@ program
       }, sed['cache'], process.cwd());
       
       // Auto-generate rules based on detected business logic
-      const businessAnalysis = await sed['semanticLayer']['businessLogicDetector'].detectBusinessLogic(
+      const businessAnalysis = sed['semanticLayer']['businessLogicDetector'].detectBusinessLogic(
         await (await (sed as any).getDbProvider()).discoverSchema()
       );
       
@@ -131,7 +136,7 @@ program
       logger.info('What was created:');
       logger.info(`• Connected to ${dbConfig.type} database`);
       logger.info(`• Discovered ${schema?.entities?.length || 0} business entities`);
-      logger.info(`• Mapped ${schema?.entities?.flatMap(e => e.relationships || []).length || 0} relationships`);
+      logger.info(`• Mapped ${schema?.relationships?.length || 0} relationships`);
       logger.info(`• Generated business rules (enabled by default)`);
       logger.info(`• Ready to query!`);
       
@@ -181,7 +186,7 @@ program
       }, sed['cache'], process.cwd());
       
       // Auto-generate rules based on detected business logic
-      const businessAnalysis = await sed['semanticLayer']['businessLogicDetector'].detectBusinessLogic(
+      const businessAnalysis = sed['semanticLayer']['businessLogicDetector'].detectBusinessLogic(
         await (await (sed as any).getDbProvider()).discoverSchema()
       );
       
@@ -207,7 +212,7 @@ program
       
       logger.success('Build completed successfully!');
       logger.info(`Entities: ${schema?.entities?.length || 0}`);
-      logger.info(`Relationships: ${schema?.entities?.flatMap(e => e.relationships || []).length || 0}`);
+      logger.info(`Relationships: ${schema?.relationships?.length || 0}`);
       logger.info('Business rules generated and enabled');
       
       process.exit(0);
@@ -442,7 +447,7 @@ program
       if (mapping) {
         console.log(chalk.green('  Loaded'));
         console.log(chalk.gray(`  Entities: ${mapping.entities?.length || 0}`));
-        console.log(chalk.gray(`  Relationships: ${mapping.entities?.flatMap(e => e.relationships || []).length || 0}`));
+        console.log(chalk.gray(`  Relationships: ${mapping.relationships?.length || 0}`));
         console.log(chalk.gray(`  File: ${sed.getMappingFilePath()}`));
       } else {
         console.log(chalk.yellow('  Not loaded'));
@@ -518,7 +523,7 @@ program
       // Minimal safe NL->SQL: build a parameterized template and require approval
       // Very conservative: search one approved table and one approved column
       const approvedTables = (mapping.entities || [])
-        .map((e) => e.databaseTable)
+        .map((e: SemanticEntity) => e.databaseTable)
         .slice(0, 1);
 
       if (approvedTables.length === 0) {
@@ -527,8 +532,8 @@ program
       }
 
       const table = approvedTables[0];
-      const approvedColumns = (mapping.entities?.find((e) => e.databaseTable === table)?.attributes || [])
-        .map((a) => a.databaseColumn)
+      const approvedColumns = (mapping.entities?.find((e: SemanticEntity) => e.databaseTable === table)?.attributes || [])
+        .map((a: SemanticAttribute) => a.databaseColumn)
         .filter((c: string) => /name|title|email|description/i.test(c))
         .slice(0, 1);
 
@@ -557,7 +562,7 @@ program
       }
       
       // Validate query against business rules
-      const context = {
+      const context: QueryContext = {
         query: baseQuery,
         queryType: 'SELECT' as const,
         tables: [table],
@@ -599,15 +604,26 @@ program
 
         // Execute the query using the database provider with parameters
         const finalSql = validationResult.modifiedQuery || baseQuery;
-        const db = (sed as any)['dbProvider'];
         
-        // Ensure database connection is established
-        await db.connect(config.database);
-        
-        const results = await db.executeQuery(finalSql, params);
-        
-        console.log(chalk.green('\nResults:'));
-        console.log(JSON.stringify(results, null, 2));
+        try {
+          // Get database provider safely using proper method
+          const dbProvider = await sed.getDatabaseProvider();
+          if (!dbProvider) {
+            throw new Error('Database provider not available');
+          }
+          
+          // Ensure database connection is established
+          await dbProvider.connect(config.database);
+          
+          const results = await dbProvider.executeQuery(finalSql, params);
+          
+          console.log(chalk.green('\nResults:'));
+          console.log(JSON.stringify(results, null, 2));
+          
+        } catch (error) {
+          logger.error(`Database operation failed: ${error}`);
+          process.exit(1);
+        }
         
       } else {
         logger.error('Query blocked by business rules');
@@ -682,7 +698,7 @@ program
       }
       
       // Track command usage
-      await trackDetectChanges(changes.length, validation.breakingChanges?.length || 0);
+      await trackDetectChanges(changes.length, validation.breakingChanges.length);
       
     } catch (error) {
       logger.error(`Change detection failed: ${error}`);
@@ -726,7 +742,7 @@ program
       );
       
       if (options.list) {
-        const filterOptions: Record<string, RuleType | RuleSeverity> = {};
+        const filterOptions: any = {};
         if (options.type) filterOptions.type = options.type as RuleType;
         if (options.severity) filterOptions.severity = options.severity as RuleSeverity;
         
@@ -787,7 +803,7 @@ program
         process.cwd()
       );
       
-      let rule: ImportedBusinessRule;
+      let rule: any;
       
       if (options.template) {
         rule = await createRuleFromTemplate(ruleEngine, options.template);
@@ -879,8 +895,7 @@ program
       }
       
       // Check if relationships exist
-      const relationships = mapping.entities?.flatMap(e => e.relationships || []) || [];
-      if (relationships.length === 0) {
+      if (!mapping.relationships || mapping.relationships.length === 0) {
         issues.push('No relationships defined');
       }
       
@@ -895,7 +910,7 @@ program
       if (isValid) {
         logger.success('Semantic layer is valid!');
         logger.info(`Entities: ${mapping.entities?.length || 0}`);
-        logger.info(`Relationships: ${relationships.length}`);
+        logger.info(`Relationships: ${mapping.relationships?.length || 0}`);
       } else {
         logger.error('Validation failed:');
         issues.forEach(issue => logger.error(`  - ${issue}`));
@@ -909,7 +924,7 @@ program
   });
 
 // Helper function to load config with validation
-function loadConfig(configPath?: string): Config {
+function loadConfig(configPath?: string): any {
   // If no configPath provided, try to get it from program options
   if (!configPath) {
     configPath = program.opts().config;
@@ -954,7 +969,7 @@ function loadConfig(configPath?: string): Config {
 }
 
 // Helper function to prompt for database configuration
-async function promptForDatabaseConfig(): Promise<DatabaseConfig> {
+async function promptForDatabaseConfig(): Promise<any> {
   console.log(chalk.blue('Database Configuration'));
   console.log(chalk.gray('Please provide your database connection details:\n'));
 
@@ -975,7 +990,7 @@ async function promptForDatabaseConfig(): Promise<DatabaseConfig> {
     }
   ]);
 
-        let config: DatabaseConfig = { type: (dbType === 'postgres-cloud' ? 'postgres' : dbType === 'mysql-cloud' ? 'mysql' : dbType) as DatabaseConfig['type'] };
+  let config: any = { type: dbType === 'postgres-cloud' ? 'postgres' : dbType === 'mysql-cloud' ? 'mysql' : dbType };
   
   if (dbType === 'sqlite') {
     const { database } = await inquirer.prompt([
@@ -1051,128 +1066,15 @@ interface ChangeDetection {
   hasChanges: boolean;
   newTables: string[];
   removedTables: string[];
-  renamedTables: Array<{ old: string; new: string }>;
-  newColumns: Array<{ table: string; column: string }>;
-  removedColumns: Array<{ table: string; column: string }>;
-  renamedColumns: Array<{ table: string; old: string; new: string }>;
-  typeChanges: Array<{ table: string; column: string; oldType: string; newType: string }>;
-  relationshipChanges: Array<{ table: string; description: string }>;
+  renamedTables: { old: string; new: string }[];
+  newColumns: { table: string; column: string }[];
+  removedColumns: { table: string; column: string }[];
+  renamedColumns: { table: string; old: string; new: string }[];
+  typeChanges: { table: string; column: string; oldType: string; newType: string }[];
+  relationshipChanges: { table: string; description: string }[];
 }
 
-interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-  confidence?: number;
-  results?: Array<{
-    ruleId: string;
-    ruleName: string;
-    passed: boolean;
-    severity: string;
-    message?: string;
-    action?: {
-      type: string;
-      message: string;
-      code?: string;
-    };
-  }>;
-  breakingChanges?: SchemaChange[];
-}
-
-interface QueryValidationResult {
-  allowed: boolean;
-  modifiedQuery?: string;
-  errors: string[];
-  warnings: string[];
-  executionTime: number;
-  metadata: {
-    rulesEvaluated: number;
-    rulesPassed: number;
-    rulesFailed: number;
-    rulesBlocked: number;
-  };
-  results: Array<{
-    ruleId: string;
-    ruleName: string;
-    passed: boolean;
-    severity: string;
-    message?: string;
-    action?: {
-      type: string;
-      message: string;
-      code?: string;
-    };
-  }>;
-}
-
-interface BusinessRule {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  severity: string;
-  condition: Record<string, unknown>;
-  action: Record<string, unknown>;
-  enabled: boolean;
-  priority: number;
-  tags: string[];
-  version: string;
-  createdAt: Date;
-  updatedAt: Date;
-  createdBy: string;
-  metadata: Record<string, unknown>;
-}
-
-interface BusinessAnalysis {
-  calculations: Array<{
-    name: string;
-    pattern: string[];
-    formula?: string;
-    confidence: number;
-    businessDomain: string;
-    description: string;
-  }>;
-  relationships: Array<{
-    fromEntity: string;
-    toEntity: string;
-    type: string;
-    cardinality: string;
-    businessPurpose: string;
-    constraints: string[];
-  }>;
-  workflows: Array<{
-    name: string;
-    description: string;
-    steps: Array<{
-      name: string;
-      description: string;
-      entity: string;
-      action: string;
-      conditions: string[];
-    }>;
-  }>;
-  rules: Array<{
-    name: string;
-    description: string;
-    type: string;
-    condition: string;
-    action: string;
-    priority: number;
-    businessDomain: string;
-    confidence: number;
-    metadata: Record<string, unknown>;
-  }>;
-  metrics: Array<{
-    name: string;
-    description: string;
-    unit: string;
-    category: string;
-    calculationType: string;
-    formula: string;
-  }>;
-}
-
-async function detectChanges(oldMapping: SemanticMapping, newMapping: SemanticMapping, newSchema: unknown): Promise<ChangeDetection> {
+async function detectChanges(oldMapping: any, newMapping: any, newSchema: any): Promise<ChangeDetection> {
   const changes: ChangeDetection = {
     hasChanges: false,
     newTables: [],
@@ -1186,8 +1088,8 @@ async function detectChanges(oldMapping: SemanticMapping, newMapping: SemanticMa
   };
 
   // Get table names
-      const oldTables = oldMapping.entities.map((e) => e.databaseTable);
-    const newTables = newMapping.entities.map((e) => e.databaseTable);
+  const oldTables = oldMapping.entities.map((e: any) => e.databaseTable);
+  const newTables = newMapping.entities.map((e: any) => e.databaseTable);
 
   // Detect new tables
   changes.newTables = newTables.filter((table: string) => !oldTables.includes(table));
@@ -1197,11 +1099,11 @@ async function detectChanges(oldMapping: SemanticMapping, newMapping: SemanticMa
 
   // Detect column changes for existing tables
   for (const oldEntity of oldMapping.entities) {
-    const newEntity = newMapping.entities.find((e) => e.databaseTable === oldEntity.databaseTable);
+    const newEntity = newMapping.entities.find((e: any) => e.databaseTable === oldEntity.databaseTable);
     if (!newEntity) continue; // Table was removed
 
-    const oldColumns = oldEntity.attributes.map((a) => a.databaseColumn);
-    const newColumns = newEntity.attributes.map((a) => a.databaseColumn);
+    const oldColumns = oldEntity.attributes.map((a: any) => a.databaseColumn);
+    const newColumns = newEntity.attributes.map((a: any) => a.databaseColumn);
 
     // New columns
     const addedColumns = newColumns.filter((col: string) => !oldColumns.includes(col));
@@ -1213,7 +1115,7 @@ async function detectChanges(oldMapping: SemanticMapping, newMapping: SemanticMa
 
     // Type changes
     for (const oldAttr of oldEntity.attributes) {
-      const newAttr = newEntity.attributes.find((a) => a.databaseColumn === oldAttr.databaseColumn);
+      const newAttr = newEntity.attributes.find((a: any) => a.databaseColumn === oldAttr.databaseColumn);
       if (newAttr && oldAttr.dataType !== newAttr.dataType) {
         changes.typeChanges.push({
           table: oldEntity.databaseTable,
@@ -1286,7 +1188,7 @@ async function promptForUpdate(changes: ChangeDetection): Promise<boolean> {
   });
 }
 
-async function createVersionBackup(currentMapping: SemanticMapping): Promise<void> {
+async function createVersionBackup(currentMapping: any): Promise<void> {
   const versionsDir = path.join(process.cwd(), '.sed', 'versions');
   
   // Ensure versions directory exists
@@ -1345,7 +1247,7 @@ program
 program.parse();
 
 // Helper functions for schema change detection
-function displayChangesTable(changes: SchemaChange[], validation: ValidationResult): void {
+function displayChangesTable(changes: any[], validation: any): void {
   console.log(chalk.blue('\nSchema Changes Summary'));
   console.log(chalk.gray('='.repeat(80)));
   
@@ -1355,7 +1257,7 @@ function displayChangesTable(changes: SchemaChange[], validation: ValidationResu
   }
 
   console.log(chalk.white(`Total Changes: ${changes.length}`));
-  console.log(chalk.red(`Breaking Changes: ${validation.breakingChanges?.length || 0}`));
+  console.log(chalk.red(`Breaking Changes: ${validation.breakingChanges.length}`));
   console.log(chalk.yellow(`Warnings: ${validation.warnings.length}`));
   console.log(chalk.gray('='.repeat(80)));
 
@@ -1374,7 +1276,7 @@ function displayChangesTable(changes: SchemaChange[], validation: ValidationResu
   });
 }
 
-function displayChangesSummary(changes: SchemaChange[], validation: ValidationResult, verbose: boolean): void {
+function displayChangesSummary(changes: any[], validation: any, verbose: boolean): void {
   console.log(chalk.blue('\nSchema Changes Summary'));
   console.log(chalk.gray('='.repeat(50)));
   
@@ -1394,7 +1296,7 @@ function displayChangesSummary(changes: SchemaChange[], validation: ValidationRe
   console.log(chalk.yellow(`High: ${high}`));
   console.log(chalk.blue(`Medium: ${medium}`));
   console.log(chalk.gray(`Low: ${low}`));
-  console.log(chalk.red(`Breaking Changes: ${validation.breakingChanges?.length || 0}`));
+  console.log(chalk.red(`Breaking Changes: ${validation.breakingChanges.length}`));
 
   if (validation.errors.length > 0) {
     console.log(chalk.red(`\nErrors:`));
@@ -1431,7 +1333,7 @@ async function trackDetectChanges(totalChanges: number, breakingChanges: number)
 }
 
 // Business rule helper functions
-function displayRulesTable(rules: ImportedBusinessRule[]): void {
+function displayRulesTable(rules: any[]): void {
   console.log(chalk.blue('\nBusiness Rules'));
   console.log(chalk.gray('='.repeat(100)));
   
@@ -1445,15 +1347,15 @@ function displayRulesTable(rules: ImportedBusinessRule[]): void {
 
   rules.forEach(rule => {
     const status = rule.enabled ? chalk.green('✓') : chalk.red('✗');
-    const severityColor = rule.severity === 'block' ? chalk.red : 
-                         rule.severity === 'error' ? chalk.yellow :
-                         rule.severity === 'warning' ? chalk.blue : chalk.gray;
+    const severityColor = rule.severity === 'critical' ? chalk.red : 
+                         rule.severity === 'high' ? chalk.yellow :
+                         rule.severity === 'medium' ? chalk.blue : chalk.gray;
     
     console.log(chalk.white(`${rule.id.padEnd(36)} ${rule.name.padEnd(20)} ${rule.type.padEnd(15)} ${severityColor(rule.severity.padEnd(10))} ${status.padEnd(8)} ${rule.priority.toString().padEnd(8)}`));
   });
 }
 
-function displayRulesSummary(rules: ImportedBusinessRule[]): void {
+function displayRulesSummary(rules: any[]): void {
   console.log(chalk.blue('\nBusiness Rules Summary'));
   console.log(chalk.gray('='.repeat(50)));
   
@@ -1464,18 +1366,18 @@ function displayRulesSummary(rules: ImportedBusinessRule[]): void {
 
   const enabled = rules.filter(r => r.enabled).length;
   const disabled = rules.length - enabled;
-  const block = rules.filter(r => r.severity === 'block').length;
-  const error = rules.filter(r => r.severity === 'error').length;
-  const warning = rules.filter(r => r.severity === 'warning').length;
-  const info = rules.filter(r => r.severity === 'info').length;
+  const critical = rules.filter(r => r.severity === 'critical').length;
+  const high = rules.filter(r => r.severity === 'high').length;
+  const medium = rules.filter(r => r.severity === 'medium').length;
+  const low = rules.filter(r => r.severity === 'low').length;
 
   console.log(chalk.white(`Total Rules: ${rules.length}`));
   console.log(chalk.green(`Enabled: ${enabled}`));
   console.log(chalk.red(`Disabled: ${disabled}`));
-  console.log(chalk.red(`Block: ${block}`));
-  console.log(chalk.yellow(`Error: ${error}`));
-  console.log(chalk.blue(`Warning: ${warning}`));
-  console.log(chalk.gray(`Info: ${info}`));
+  console.log(chalk.red(`Critical: ${critical}`));
+  console.log(chalk.yellow(`High: ${high}`));
+  console.log(chalk.blue(`Medium: ${medium}`));
+  console.log(chalk.gray(`Low: ${low}`));
 
   // Group by type
   const byType = rules.reduce((acc, rule) => {
@@ -1489,7 +1391,7 @@ function displayRulesSummary(rules: ImportedBusinessRule[]): void {
   });
 }
 
-async function addRuleFromFile(ruleEngine: BusinessRuleEngine, filePath: string): Promise<void> {
+async function addRuleFromFile(ruleEngine: any, filePath: string): Promise<void> {
   try {
     const ruleData = fs.readFileSync(filePath, 'utf8');
     const rule = JSON.parse(ruleData);
@@ -1528,7 +1430,7 @@ function parseQuery(query: string): { type: string; tables: string[]; columns: s
   return { type, tables, columns };
 }
 
-function displayValidationResults(result: QueryValidationResult): void {
+function displayValidationResults(result: any): void {
   console.log(chalk.blue('\nQuery Validation Results'));
   console.log(chalk.gray('='.repeat(60)));
   
@@ -1556,7 +1458,7 @@ function displayValidationResults(result: QueryValidationResult): void {
 
   if (result.results.length > 0) {
     console.log(chalk.gray('\nRule Results:'));
-    result.results?.forEach((ruleResult, index: number) => {
+    result.results.forEach((ruleResult: any, index: number) => {
       const status = ruleResult.passed ? chalk.green('✓') : chalk.red('✗');
       const severityColor = ruleResult.severity === 'critical' ? chalk.red : 
                            ruleResult.severity === 'high' ? chalk.yellow :
@@ -1570,7 +1472,7 @@ function displayValidationResults(result: QueryValidationResult): void {
   }
 }
 
-function displayValidationSummary(result: QueryValidationResult): void {
+function displayValidationSummary(result: any): void {
   console.log(chalk.blue('\nQuery Validation Summary'));
   console.log(chalk.gray('='.repeat(40)));
   
@@ -1590,7 +1492,7 @@ function displayValidationSummary(result: QueryValidationResult): void {
   }
 }
 
-async function createRuleFromTemplate(ruleEngine: BusinessRuleEngine, templateId: string): Promise<ImportedBusinessRule> {
+async function createRuleFromTemplate(ruleEngine: any, templateId: string): Promise<any> {
   // This would be implemented with interactive prompts
   // For now, return a basic rule
   return {
@@ -1604,11 +1506,11 @@ async function createRuleFromTemplate(ruleEngine: BusinessRuleEngine, templateId
     enabled: true,
     priority: 100,
     condition: {
-      type: 'expression',
+      type: ConditionType.EXPRESSION,
       expression: 'true'
     },
     action: {
-      type: 'allow',
+      type: ActionType.ALLOW,
       message: 'Query allowed'
     },
     tags: ['template'],
@@ -1619,7 +1521,7 @@ async function createRuleFromTemplate(ruleEngine: BusinessRuleEngine, templateId
   };
 }
 
-async function createRuleInteractively(): Promise<ImportedBusinessRule> {
+async function createRuleInteractively(): Promise<any> {
   // This would be implemented with interactive prompts using inquirer
   // For now, return a basic rule
   return {
@@ -1633,11 +1535,11 @@ async function createRuleInteractively(): Promise<ImportedBusinessRule> {
     enabled: true,
     priority: 100,
     condition: {
-      type: 'expression',
+      type: ConditionType.EXPRESSION,
       expression: 'true'
     },
     action: {
-      type: 'allow',
+      type: ActionType.ALLOW,
       message: 'Query allowed'
     },
     tags: ['interactive'],
@@ -1648,12 +1550,9 @@ async function createRuleInteractively(): Promise<ImportedBusinessRule> {
   };
 }
 
-import { PIIDetector, PIIDetectionConfig } from './security/PIIDetector';
-import { BusinessLogicAnalyzer } from './business/BusinessLogicAnalyzer';
-
 async function generateBusinessRulesFromAnalysis(
   ruleEngine: BusinessRuleEngine, 
-  businessAnalysis: BusinessLogicAnalysis, 
+  businessAnalysis: DetectorBusinessLogicAnalysis, 
   options: { ruleTypes: string[], confidenceThreshold: number }
 ): Promise<void> {
   const { ruleTypes, confidenceThreshold } = options;
@@ -1678,48 +1577,98 @@ async function generateBusinessRulesFromAnalysis(
     if (ruleTypes.includes('pii')) {
       logger.info('Running advanced PII detection...');
       
-      // For PII detection, we need a database schema
-      // Since BusinessLogicAnalysis doesn't have schema, we'll skip this for now
-      // In a real implementation, you'd pass the schema separately
-      logger.info('PII detection requires database schema - skipping for now');
+      // Use detected calculations for PII detection
+      const piiPatterns = ['email', 'ssn', 'phone', 'address', 'password', 'credit_card'];
+      const piiCalculations = businessAnalysis.detectedCalculations
+        .filter(calc => piiPatterns.some(pattern => 
+          calc.pattern.some(p => p.toLowerCase().includes(pattern))
+        ));
+      
+      // Generate PII protection rules
+      for (const calc of piiCalculations) {
+        if (calc.confidence >= confidenceThreshold) {
+          const rule = {
+            id: uuidv4(),
+            name: `PII Protection - ${calc.name}`,
+            description: `Protect ${calc.name} data`,
+            type: RuleType.PII_PROTECTION,
+            severity: RuleSeverity.BLOCK,
+            scope: RuleScope.COLUMN,
+            trigger: RuleTrigger.BEFORE_QUERY,
+            enabled: true,
+            priority: 1000,
+            condition: {
+              type: ConditionType.PATTERN,
+              pattern: `.*${calc.pattern.join('|')}.*`
+            },
+            action: {
+              type: ActionType.DENY,
+              message: `Access to ${calc.name} data is not allowed`
+            },
+            tags: ['auto-generated', 'pii', 'security'],
+            version: '1.0.0',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            createdBy: 'sed-advanced-pii-detector'
+          };
+          
+          await ruleEngine.addRule(rule);
+        }
+      }
+      
+      logger.info(`Generated ${piiCalculations.length} PII protection rules`);
     }
     
     // Advanced business logic analysis
     if (ruleTypes.includes('metrics') || ruleTypes.includes('joins') || ruleTypes.includes('validation')) {
       logger.info('Running advanced business logic analysis...');
       
-      // Generate business logic rules from the analysis
-      for (const rule of businessAnalysis.rules) {
-        if (rule.confidence >= confidenceThreshold) {
+      // Generate business logic rules from detected calculations
+      for (const calc of businessAnalysis.detectedCalculations) {
+        if (calc.confidence >= confidenceThreshold && calc.formula) {
           const businessRule = {
             id: uuidv4(),
-            name: rule.name,
-            description: rule.description,
-            type: mapBusinessRuleType(rule.type),
-            severity: rule.priority >= 800 ? RuleSeverity.BLOCK : RuleSeverity.WARNING,
+            name: `Metric Definition - ${calc.name}`,
+            description: calc.description,
+            type: RuleType.METRIC_DEFINITION,
+            severity: RuleSeverity.WARNING,
             scope: RuleScope.GLOBAL,
             trigger: RuleTrigger.BEFORE_QUERY,
             enabled: true,
-            priority: rule.priority,
+            priority: calc.confidence * 1000,
             condition: {
-              type: 'expression' as const,
-              expression: rule.condition
+              type: ConditionType.PATTERN,
+              pattern: `.*${calc.name}.*`
             },
             action: {
-              type: rule.type === 'validation' ? 'deny' as const : 'modify' as const,
-              message: rule.description,
-              code: rule.action
+              type: ActionType.MODIFY,
+              message: `Using standardized ${calc.name} calculation`,
+              code: `SELECT ${calc.formula} as ${calc.name} FROM {originalQuery}`
             },
-            tags: ['auto-generated', 'business-logic', rule.businessDomain],
+            tags: ['auto-generated', 'business-logic', calc.type],
             version: '1.0.0',
             createdAt: new Date(),
             updatedAt: new Date(),
             createdBy: 'sed-business-analyzer',
             metadata: {
-              businessDomain: rule.businessDomain,
-              confidence: rule.confidence,
-              ruleType: rule.type,
-              ...rule.metadata
+              businessContext: {
+                domain: businessAnalysis.businessDomain,
+                owner: 'sed-business-analyzer',
+                stakeholders: ['data-team'],
+                businessImpact: 'high',
+                riskLevel: 'medium',
+                priority: 'high'
+              },
+              technicalDetails: {
+                technology: 'sed',
+                version: '1.0.0',
+                dependencies: [],
+                configuration: {
+                  confidence: calc.confidence,
+                  ruleType: calc.type,
+                  table: calc.table
+                }
+              }
             }
           };
           
@@ -1728,169 +1677,68 @@ async function generateBusinessRulesFromAnalysis(
       }
       
       // Generate relationship-based rules
-      for (const relationship of businessAnalysis.relationships) {
-        const relationshipRule = {
-          id: uuidv4(),
-          name: `Relationship Rule - ${relationship.fromEntity} to ${relationship.toEntity}`,
-          description: relationship.businessPurpose,
-          type: RuleType.JOIN_RULE,
-          severity: RuleSeverity.WARNING,
-          scope: RuleScope.GLOBAL,
-          trigger: RuleTrigger.BEFORE_QUERY,
-          enabled: true,
-          priority: 600,
-          condition: {
-            type: 'expression' as const,
-            expression: `relationship_exists('${relationship.fromEntity}', '${relationship.toEntity}')`
-          },
-          action: {
-            type: 'modify' as const,
-            message: `Ensuring proper relationship between ${relationship.fromEntity} and ${relationship.toEntity}`,
-            code: `SELECT * FROM {originalQuery} JOIN ${relationship.toEntity} ON ${relationship.fromEntity}.id = ${relationship.toEntity}.${relationship.fromEntity}_id`
-          },
-          tags: ['auto-generated', 'relationship', 'business-logic'],
-          version: '1.0.0',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: 'sed-business-analyzer',
-          metadata: {
-            relationshipType: relationship.type,
-            cardinality: relationship.cardinality,
-            businessPurpose: relationship.businessPurpose,
-            constraints: relationship.constraints
-          }
-        };
-        
-        await ruleEngine.addRule(relationshipRule);
+      for (const relationship of businessAnalysis.detectedRelationships) {
+        if (relationship.confidence && relationship.confidence >= confidenceThreshold) {
+          const relationshipRule = {
+            id: uuidv4(),
+            name: `Relationship Rule - ${relationship.from_table} to ${relationship.to_table}`,
+            description: relationship.description,
+            type: RuleType.JOIN_RULE,
+            severity: RuleSeverity.WARNING,
+            scope: RuleScope.GLOBAL,
+            trigger: RuleTrigger.BEFORE_QUERY,
+            enabled: true,
+            priority: 600,
+            condition: {
+              type: ConditionType.PATTERN,
+              pattern: `.*${relationship.from_table}.*${relationship.to_table}.*`
+            },
+            action: {
+              type: ActionType.MODIFY,
+              message: `Ensuring proper relationship between ${relationship.from_table} and ${relationship.to_table}`,
+              code: `SELECT * FROM {originalQuery} JOIN ${relationship.to_table} ON ${relationship.from_table}.${relationship.from_column} = ${relationship.to_table}.${relationship.to_column}`
+            },
+            tags: ['auto-generated', 'relationship', 'business-logic'],
+            version: '1.0.0',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            createdBy: 'sed-business-analyzer',
+            metadata: {
+              businessContext: {
+                domain: 'data-relationships',
+                owner: 'sed-business-analyzer',
+                stakeholders: ['data-engineering-team'],
+                businessImpact: 'medium',
+                riskLevel: 'low',
+                priority: 'medium'
+              },
+              technicalDetails: {
+                technology: 'sed',
+                version: '1.0.0',
+                dependencies: [],
+                configuration: {
+                  relationshipType: relationship.relationship_type || 'unknown',
+                  fromTable: relationship.from_table,
+                  toTable: relationship.to_table
+                }
+              }
+            }
+          };
+          
+          await ruleEngine.addRule(relationshipRule);
+        }
       }
       
-      // Generate metric-based rules
-      for (const metric of businessAnalysis.metrics) {
-        const metricRule = {
-          id: uuidv4(),
-          name: `Metric Rule - ${metric.name}`,
-          description: `Auto-generated rule for ${metric.name} metric`,
-          type: RuleType.METRIC_DEFINITION,
-          severity: RuleSeverity.INFO,
-          scope: RuleScope.GLOBAL,
-          trigger: RuleTrigger.BEFORE_QUERY,
-          enabled: true,
-          priority: 400,
-          condition: {
-            type: 'expression' as const,
-            expression: `metric_defined('${metric.name}')`
-          },
-          action: {
-            type: 'modify' as const,
-            message: `Applying ${metric.name} metric calculation`,
-            code: metric.formula
-          },
-          tags: ['auto-generated', 'metric', 'business-logic'],
-          version: '1.0.0',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: 'sed-business-analyzer',
-          metadata: {
-            metricName: metric.name,
-            unit: metric.unit,
-            category: metric.category,
-            calculationType: metric.calculationType
-          }
-        };
-        
-        await ruleEngine.addRule(metricRule);
-      }
-      
-      // Generate calculation-based rules
-      for (const calculation of businessAnalysis.detectedCalculations) {
-        const calculationRule = {
-          id: uuidv4(),
-          name: `Calculation Rule - ${calculation.name}`,
-          description: `Auto-generated rule for ${calculation.name} calculation`,
-          type: RuleType.CALCULATION_RULE,
-          severity: RuleSeverity.INFO,
-          scope: RuleScope.GLOBAL,
-          trigger: RuleTrigger.BEFORE_QUERY,
-          enabled: true,
-          priority: 500,
-          condition: {
-            type: 'expression' as const,
-            expression: `calculation_required('${calculation.name}')`
-          },
-          action: {
-            type: 'modify' as const,
-            message: `Applying ${calculation.name} calculation`,
-            code: calculation.formula || `calculate_${calculation.name}()`
-          },
-          tags: ['auto-generated', 'calculation', 'business-logic'],
-          version: '1.0.0',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: 'sed-business-analyzer',
-          metadata: {
-            calculationName: calculation.name,
-            businessDomain: calculation.businessDomain,
-            confidence: calculation.confidence,
-            pattern: calculation.pattern
-          }
-        };
-        
-        await ruleEngine.addRule(calculationRule);
-      }
-      
-      logger.info(`Generated ${businessAnalysis.rules.length} business logic rules`);
-      logger.info(`Generated ${businessAnalysis.relationships.length} relationship rules`);
-      logger.info(`Generated ${businessAnalysis.metrics.length} metric rules`);
-      logger.info(`Generated ${businessAnalysis.detectedCalculations.length} calculation rules`);
+      logger.info(`Generated ${businessAnalysis.detectedCalculations.length} business logic rules`);
+      logger.info(`Generated ${businessAnalysis.detectedRelationships.length} relationship rules`);
     }
     
-    // Generate workflow-based rules
-    if (ruleTypes.includes('workflow')) {
-      logger.info('Generating workflow-based rules...');
-      
-      for (const workflow of businessAnalysis.workflows) {
-        const workflowRule = {
-          id: uuidv4(),
-          name: `Workflow Rule - ${workflow.name}`,
-          description: `Auto-generated rule for ${workflow.name} workflow`,
-          type: RuleType.BUSINESS_LOGIC,
-          severity: RuleSeverity.WARNING,
-          scope: RuleScope.GLOBAL,
-          trigger: RuleTrigger.BEFORE_QUERY,
-          enabled: true,
-          priority: 700,
-          condition: {
-            type: 'expression' as const,
-            expression: `workflow_active('${workflow.name}')`
-          },
-          action: {
-            type: 'modify' as const,
-            message: `Enforcing ${workflow.name} workflow rules`,
-            code: `enforce_workflow('${workflow.name}')`
-          },
-          tags: ['auto-generated', 'workflow', 'business-logic'],
-          version: '1.0.0',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: 'sed-business-analyzer',
-          metadata: {
-            workflowName: workflow.name,
-            workflowSteps: workflow.steps.length,
-            description: workflow.description
-          }
-        };
-        
-        await ruleEngine.addRule(workflowRule);
-      }
-      
-      logger.info(`Generated ${businessAnalysis.workflows.length} workflow rules`);
-    }
-    
-    logger.success('Business rules generation completed successfully!');
+    logger.success('Advanced business rules generation completed successfully!');
     
   } catch (error) {
-    logger.error(`Business rules generation failed: ${error}`);
-    throw error;
+    logger.error(`Advanced business rules generation failed: ${error}`);
+    // Fallback to basic rule generation
+    await generateBasicBusinessRules(ruleEngine, businessAnalysis, options);
   }
 }
 
@@ -1907,3 +1755,87 @@ function mapBusinessRuleType(businessRuleType: string): RuleType {
   
   return typeMap[businessRuleType] || RuleType.BUSINESS_LOGIC;
 }
+
+// Fallback basic rule generation
+async function generateBasicBusinessRules(
+  ruleEngine: any, 
+  businessAnalysis: any, 
+  options: { ruleTypes: string[], confidenceThreshold: number }
+): Promise<void> {
+  const { ruleTypes, confidenceThreshold } = options;
+  
+  // Basic PII protection rules
+  if (ruleTypes.includes('pii')) {
+    const piiPatterns = ['email', 'ssn', 'phone', 'address', 'password', 'credit_card'];
+    const detectedPiiColumns = businessAnalysis.detectedCalculations
+      .filter((calc: any) => piiPatterns.some(pattern => 
+        calc.pattern.some((p: string) => p.toLowerCase().includes(pattern))
+      ));
+    
+    for (const piiCalc of detectedPiiColumns) {
+      if (piiCalc.confidence >= confidenceThreshold) {
+        const rule = {
+          id: uuidv4(),
+          name: `PII Protection - ${piiCalc.name}`,
+          description: `Protect ${piiCalc.name} data`,
+          type: RuleType.PII_PROTECTION,
+          severity: RuleSeverity.BLOCK,
+          scope: RuleScope.COLUMN,
+          trigger: RuleTrigger.BEFORE_QUERY,
+          enabled: true,
+          priority: 1000,
+          condition: {
+            type: ConditionType.PATTERN,
+            pattern: `.*${piiCalc.pattern.join('|')}.*`
+          },
+          action: {
+            type: ActionType.DENY,
+            message: `Access to ${piiCalc.name} data is not allowed`
+          },
+          tags: ['auto-generated', 'pii', 'security'],
+          version: '1.0.0',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: 'sed-build'
+        };
+        
+        await ruleEngine.addRule(rule);
+      }
+    }
+  }
+  
+  // Basic metric definition rules
+  if (ruleTypes.includes('metrics')) {
+    for (const calc of businessAnalysis.detectedCalculations) {
+      if (calc.confidence >= confidenceThreshold && calc.formula) {
+        const rule = {
+          id: uuidv4(),
+          name: `Metric Definition - ${calc.name}`,
+          description: `Standardize ${calc.name} calculation`,
+          type: RuleType.METRIC_DEFINITION,
+          severity: RuleSeverity.WARNING,
+          scope: RuleScope.GLOBAL,
+          trigger: RuleTrigger.BEFORE_QUERY,
+          enabled: true,
+          priority: 500,
+          condition: {
+            type: ConditionType.PATTERN,
+            pattern: `.*${calc.name}.*`
+          },
+          action: {
+            type: ActionType.MODIFY,
+            message: `Using standardized ${calc.name} calculation`,
+            code: `SELECT ${calc.formula} as ${calc.name} FROM {originalQuery}`
+          },
+          tags: ['auto-generated', 'metrics', 'business-logic'],
+          version: '1.0.0',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: 'sed-build'
+        };
+        
+        await ruleEngine.addRule(rule);
+      }
+    }
+  }
+} 

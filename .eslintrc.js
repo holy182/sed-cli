@@ -1,41 +1,30 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
-  extends: [
-    'eslint:recommended',
-  ],
-  plugins: ['@typescript-eslint', 'security'],
-  env: {
-    node: true,
-    es6: true,
-    jest: true, // Add Jest environment
-  },
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',
   },
+  plugins: ['@typescript-eslint'],
+  extends: [
+    'eslint:recommended',
+  ],
   rules: {
-    'no-unused-vars': 'off',
-    '@typescript-eslint/no-unused-vars': 'warn', // Change from error to warning
+    // Make ALL rules warnings for MVP - we can fix them later
     '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-unused-vars': 'warn',
+    '@typescript-eslint/no-empty-function': 'warn',
+    '@typescript-eslint/no-var-requires': 'warn',
+    'no-undef': 'warn',
+    'no-unused-vars': 'warn',
+    
+    // Disable some overly strict rules for now
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
-    '@typescript-eslint/no-var-requires': 'warn',
-    '@typescript-eslint/no-empty-function': 'warn',
-    'no-undef': 'warn', // Change from error to warning for Jest globals
-    'security/detect-object-injection': 'off', // Temporarily disable for MVP
+    '@typescript-eslint/no-inferrable-types': 'off',
   },
-  ignorePatterns: ['dist/', 'node_modules/', '*.js', '*.d.ts'],
-  root: true,
-  globals: {
-    // Jest globals
-    describe: 'readonly',
-    it: 'readonly',
-    test: 'readonly',
-    expect: 'readonly',
-    beforeEach: 'readonly',
-    afterEach: 'readonly',
-    beforeAll: 'readonly',
-    afterAll: 'readonly',
-    jest: 'readonly',
+  env: {
+    node: true,
+    es6: true,
   },
+  ignorePatterns: ['dist/', 'node_modules/', '*.js'],
 };

@@ -335,7 +335,7 @@ export class BusinessLogicDetector {
       const tableName = table.name.toLowerCase();
       
       // Check financial calculations with enhanced matching
-      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns.financial)) {
+      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns?.financial || {})) {
         const matchScore = this.enhancedPatternMatch(rule.pattern, columnNames, tableName);
         if (matchScore > 0.7) {
           analysis.detectedCalculations.push({
@@ -353,7 +353,7 @@ export class BusinessLogicDetector {
       }
       
       // Check inventory calculations
-      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns.inventory)) {
+      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns?.inventory || {})) {
         const matchScore = this.enhancedPatternMatch(rule.pattern, columnNames, tableName);
         if (matchScore > 0.7) {
           analysis.detectedCalculations.push({
@@ -371,7 +371,7 @@ export class BusinessLogicDetector {
       }
       
       // Check analytics calculations
-      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns.analytics)) {
+      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns?.analytics || {})) {
         const matchScore = this.enhancedPatternMatch(rule.pattern, columnNames, tableName);
         if (matchScore > 0.7) {
           analysis.detectedCalculations.push({
@@ -409,7 +409,7 @@ export class BusinessLogicDetector {
       }
       
       // Check operational calculations
-      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns.operational)) {
+      for (const [calcName, rule] of Object.entries(this.businessRules.calculation_patterns?.operational || {})) {
         const matchScore = this.enhancedPatternMatch(rule.pattern, columnNames, tableName);
         if (matchScore > 0.7) {
           analysis.detectedCalculations.push({
@@ -462,7 +462,7 @@ export class BusinessLogicDetector {
       const tableName = table.name.toLowerCase();
       
       // Check user activity statuses
-      for (const [statusName, rule] of Object.entries(this.businessRules.status_patterns.user_activity)) {
+      for (const [statusName, rule] of Object.entries(this.businessRules.status_patterns?.user_activity || {})) {
         const matchScore = this.enhancedPatternMatch(rule.pattern, columnNames, tableName);
         if (matchScore > 0.7) {
           analysis.detectedStatuses.push({
@@ -480,7 +480,7 @@ export class BusinessLogicDetector {
       }
       
       // Check order statuses
-      for (const [statusName, rule] of Object.entries(this.businessRules.status_patterns.order_status)) {
+      for (const [statusName, rule] of Object.entries(this.businessRules.status_patterns?.order_status || {})) {
         const matchScore = this.enhancedPatternMatch(rule.pattern, columnNames, tableName);
         if (matchScore > 0.7) {
           analysis.detectedStatuses.push({
@@ -498,7 +498,7 @@ export class BusinessLogicDetector {
       }
       
       // Check system statuses
-      for (const [statusName, rule] of Object.entries(this.businessRules.status_patterns.system_status)) {
+      for (const [statusName, rule] of Object.entries(this.businessRules.status_patterns?.system_status || {})) {
         const matchScore = this.enhancedPatternMatch(rule.pattern, columnNames, tableName);
         if (matchScore > 0.7) {
           analysis.detectedStatuses.push({
@@ -598,29 +598,34 @@ export class BusinessLogicDetector {
       }
       
       // Detect foreign key relationships from patterns
-      for (const [relName, rule] of Object.entries(this.businessRules.relationship_patterns.foreign_keys)) {
-        // Check if this table matches the from_table in the pattern
-        if (table.name.toLowerCase() === rule.from_table.toLowerCase()) {
-          // Look for the foreign key column
-          const fkColumn = tableColumns.find((col: any) => col.name.toLowerCase() === rule.from_column.toLowerCase());
-          if (fkColumn) {
-            analysis.detectedRelationships.push({
-              type: 'foreign_key',
-              from_table: rule.from_table,
-              from_column: rule.from_column,
-              to_table: rule.to_table,
-              to_column: rule.to_column,
-              relationship_type: rule.relationship_type || 'many_to_one',
-              description: rule.description,
-              business_purpose: rule.business_purpose,
-              confidence: 0.9
-            });
+      for (const [relName, rule] of Object.entries(this.businessRules.relationship_patterns?.foreign_keys || {})) {
+        // Check if rule has required properties before using them
+        if (rule.from_table && rule.from_column && rule.to_table && rule.to_column) {
+          // Check if this table matches the from_table in the pattern
+          if (table.name.toLowerCase() === rule.from_table.toLowerCase()) {
+            // Look for the foreign key column
+            const fkColumn = tableColumns.find((col: any) => col.name.toLowerCase() === rule.from_column.toLowerCase());
+            if (fkColumn) {
+              analysis.detectedRelationships.push({
+                type: 'foreign_key',
+                from_table: rule.from_table,
+                from_column: rule.from_column,
+                to_table: rule.to_table,
+                to_column: rule.to_column,
+                relationship_type: rule.relationship_type || 'many_to_one',
+                description: rule.description,
+                business_purpose: rule.business_purpose,
+                confidence: 0.9
+              });
+            }
           }
         }
       }
       
-              // Detect calculated field patterns
-        for (const [calcName, rule] of Object.entries(this.businessRules.relationship_patterns.calculated_fields)) {
+      // Detect calculated field patterns
+      for (const [calcName, rule] of Object.entries(this.businessRules.relationship_patterns?.calculated_fields || {})) {
+        // Check if rule has required properties before using them
+        if (rule && typeof rule === 'object') {
           // Check if the table has the calculated field
           const hasField = tableColumns.some((col: any) => col.name.toLowerCase() === calcName.toLowerCase());
           if (hasField) {
@@ -637,6 +642,7 @@ export class BusinessLogicDetector {
             });
           }
         }
+      }
       
       // Detect calculated fields based on business patterns and naming conventions
       for (const column of tableColumns) {
@@ -796,7 +802,7 @@ export class BusinessLogicDetector {
    */
   private detectBusinessRules(schema: any, analysis: BusinessLogicAnalysis): void {
     const domain = this.detectBusinessDomain(schema);
-    const domainConfig = this.businessRules.business_domains[domain];
+    const domainConfig = this.businessRules.business_domains?.[domain];
     
     if (domainConfig?.business_rules) {
       for (const rule of domainConfig.business_rules) {
@@ -822,7 +828,7 @@ export class BusinessLogicDetector {
     
     const domainScores: { [key: string]: number } = {};
     
-    for (const [domain, config] of Object.entries(this.businessRules.business_domains)) {
+    for (const [domain, config] of Object.entries(this.businessRules.business_domains || {})) {
       let score = 0;
       
       // Check key entities with higher weight
@@ -1414,7 +1420,7 @@ export class BusinessLogicDetector {
    * Get domain-specific recommendations
    */
   private getDomainRecommendations(domain: string): string[] {
-    const domainConfig = this.businessRules.business_domains[domain];
+    const domainConfig = this.businessRules.business_domains?.[domain];
     if (!domainConfig) return [];
 
     const recommendations = [];

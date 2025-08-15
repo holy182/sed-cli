@@ -218,11 +218,12 @@ export class InputValidator {
       }
     }
 
-    // Validate file path format
+    // Validate file path format - more permissive for Windows paths
+    // Allow drive letters (C:), spaces, parentheses, and other common Windows path characters
     const pathValidation = this.validateString(filePath, [
       { type: 'string' },
       // eslint-disable-next-line no-useless-escape
-      { type: 'regex', value: /^[a-zA-Z0-9._\/\\-]+$/, message: 'Invalid file path format' }
+      { type: 'regex', value: /^[a-zA-Z0-9._\/\\\-:()\[\]{} \t]+$/, message: 'Invalid file path format' }
     ]);
     errors.push(...pathValidation.errors);
 

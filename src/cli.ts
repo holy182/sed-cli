@@ -1679,53 +1679,105 @@ async function generateBusinessRulesFromAnalysis(
       // Generate relationship-based rules
       for (const relationship of businessAnalysis.detectedRelationships) {
         if (relationship.confidence && relationship.confidence >= confidenceThreshold) {
-          const relationshipRule = {
-            id: uuidv4(),
-            name: `Relationship Rule - ${relationship.from_table} to ${relationship.to_table}`,
-            description: relationship.description,
-            type: RuleType.JOIN_RULE,
-            severity: RuleSeverity.WARNING,
-            scope: RuleScope.GLOBAL,
-            trigger: RuleTrigger.BEFORE_QUERY,
-            enabled: true,
-            priority: 600,
-            condition: {
-              type: ConditionType.PATTERN,
-              pattern: `.*${relationship.from_table}.*${relationship.to_table}.*`
-            },
-            action: {
-              type: ActionType.MODIFY,
-              message: `Ensuring proper relationship between ${relationship.from_table} and ${relationship.to_table}`,
-              code: `SELECT * FROM {originalQuery} JOIN ${relationship.to_table} ON ${relationship.from_table}.${relationship.from_column} = ${relationship.to_table}.${relationship.to_column}`
-            },
-            tags: ['auto-generated', 'relationship', 'business-logic'],
-            version: '1.0.0',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            createdBy: 'sed-business-analyzer',
-            metadata: {
-              businessContext: {
-                domain: 'data-relationships',
-                owner: 'sed-business-analyzer',
-                stakeholders: ['data-engineering-team'],
-                businessImpact: 'medium',
-                riskLevel: 'low',
-                priority: 'medium'
+          // Only generate JOIN rules for relationships that have column information
+          if (relationship.from_column && relationship.to_column && relationship.type === 'foreign_key') {
+            const relationshipRule = {
+              id: uuidv4(),
+              name: `Relationship Rule - ${relationship.from_table} to ${relationship.to_table}`,
+              description: relationship.description,
+              type: RuleType.JOIN_RULE,
+              severity: RuleSeverity.WARNING,
+              scope: RuleScope.GLOBAL,
+              trigger: RuleTrigger.BEFORE_QUERY,
+              enabled: true,
+              priority: 600,
+              condition: {
+                type: ConditionType.PATTERN,
+                pattern: `.*${relationship.from_table}.*${relationship.to_table}.*`
               },
-              technicalDetails: {
-                technology: 'sed',
-                version: '1.0.0',
-                dependencies: [],
-                configuration: {
-                  relationshipType: relationship.relationship_type || 'unknown',
-                  fromTable: relationship.from_table,
-                  toTable: relationship.to_table
+              action: {
+                type: ActionType.MODIFY,
+                message: `Ensuring proper relationship between ${relationship.from_table} and ${relationship.to_table}`,
+                code: `SELECT * FROM {originalQuery} JOIN ${relationship.to_table} ON ${relationship.from_table}.${relationship.from_column} = ${relationship.to_table}.${relationship.to_column}`
+              },
+              tags: ['auto-generated', 'relationship', 'business-logic'],
+              version: '1.0.0',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              createdBy: 'sed-business-analyzer',
+              metadata: {
+                businessContext: {
+                  domain: 'data-relationships',
+                  owner: 'sed-business-analyzer',
+                  stakeholders: ['data-engineering-team'],
+                  businessImpact: 'medium',
+                  riskLevel: 'low',
+                  priority: 'medium'
+                },
+                technicalDetails: {
+                  technology: 'sed',
+                  version: '1.0.0',
+                  dependencies: [],
+                  configuration: {
+                    relationshipType: relationship.relationship_type || 'unknown',
+                    fromTable: relationship.from_table,
+                    toTable: relationship.to_table
+                  }
                 }
               }
-            }
-          };
-          
-          await ruleEngine.addRule(relationshipRule);
+            };
+            
+            await ruleEngine.addRule(relationshipRule);
+          } else {
+            // Generate informational rules for relationships without column details
+            const infoRule = {
+              id: uuidv4(),
+              name: `Info Rule - ${relationship.from_table} to ${relationship.to_table}`,
+              description: relationship.description,
+              type: RuleType.BUSINESS_LOGIC,
+              severity: RuleSeverity.INFO,
+              scope: RuleScope.GLOBAL,
+              trigger: RuleTrigger.BEFORE_QUERY,
+              enabled: true,
+              priority: 400,
+              condition: {
+                type: ConditionType.PATTERN,
+                pattern: `.*${relationship.from_table}.*${relationship.to_table}.*`
+              },
+                             action: {
+                 type: ActionType.LOG,
+                 message: `Business relationship detected: ${relationship.from_table} to ${relationship.to_table} (${relationship.relationship_type || 'unknown'})`
+               },
+              tags: ['auto-generated', 'relationship', 'business-logic', 'info'],
+              version: '1.0.0',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              createdBy: 'sed-business-analyzer',
+              metadata: {
+                businessContext: {
+                  domain: 'data-relationships',
+                  owner: 'sed-business-analyzer',
+                  stakeholders: ['data-engineering-team'],
+                  businessImpact: 'low',
+                  riskLevel: 'low',
+                  priority: 'low'
+                },
+                technicalDetails: {
+                  technology: 'sed',
+                  version: '1.0.0',
+                  dependencies: [],
+                  configuration: {
+                    relationshipType: relationship.relationship_type || 'unknown',
+                    fromTable: relationship.from_table,
+                    toTable: relationship.to_table,
+                    hasColumnDetails: false
+                  }
+                }
+              }
+            };
+            
+            await ruleEngine.addRule(infoRule);
+          }
         }
       }
       

@@ -65,25 +65,40 @@ export class SQLiteProvider implements DatabaseProvider {
 
       logger.info(`Discovered ${tablesResult.length} tables/views in SQLite database`);
       
-      // Include all tables
+      // Apply intelligent filtering using DiscoveryConfig
       const allTables = [];
+      const filteredTables = [];
       
       for (const row of tablesResult) {
         // Get table row count and relationship info
         const rowCount = await this.getTableRowCount(row.name);
         const hasRelationships = await this.hasTableRelationships(row.name);
         
-        allTables.push({ 
-          ...row, 
-          rowCount, 
-          hasRelationships, 
-          priority: 0.5, 
-          reason: 'Table included' 
-        });
+        // Apply intelligent filtering
+        const filterResult = DiscoveryConfigManager.shouldIncludeTable(
+          row.name,
+          'main', // SQLite uses 'main' as default schema
+          rowCount,
+          hasRelationships,
+          discoveryConfig
+        );
+        
+        if (filterResult.include) {
+          allTables.push({ 
+            ...row, 
+            rowCount, 
+            hasRelationships, 
+            priority: filterResult.priority, 
+            reason: filterResult.reason 
+          });
+          filteredTables.push(row);
+        } else {
+          logger.debug(`Filtered out table ${row.name}: ${filterResult.reason}`);
+        }
       }
       
 
-      logger.info(`Discovered ${allTables.length} tables`);
+      logger.info(`Discovered ${allTables.length} tables (after filtering)`);
 
       const tables = await Promise.all(
         allTables.map(async (row) => {

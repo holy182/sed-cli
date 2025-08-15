@@ -78,16 +78,15 @@ export class MySQLProvider implements DatabaseProvider {
       
 
       
-      // Include all tables with permission checking only
+      // Apply intelligent filtering using DiscoveryConfig
       let allTables = [];
       const permissionWarnings = new Set<string>();
+      const filteredTables = [];
       
       // Initialize variables for views, procedures, and functions
       let views: any[] = [];
       let procedures: any[] = [];
       let functions: any[] = [];
-      
-
       
       for (const row of tablesResult as any[]) {
         try {
@@ -95,13 +94,27 @@ export class MySQLProvider implements DatabaseProvider {
           const rowCount = await this.getTableRowCount(connection, row.TABLE_SCHEMA, row.TABLE_NAME);
           const hasRelationships = await this.hasTableRelationships(connection, row.TABLE_SCHEMA, row.TABLE_NAME);
           
-          allTables.push({ 
-            ...row, 
-            rowCount, 
-            hasRelationships, 
-            priority: 0.5, 
-            reason: 'Table included' 
-          });
+          // Apply intelligent filtering
+          const filterResult = DiscoveryConfigManager.shouldIncludeTable(
+            row.TABLE_NAME,
+            row.TABLE_SCHEMA,
+            rowCount,
+            hasRelationships,
+            discoveryConfig
+          );
+          
+          if (filterResult.include) {
+            allTables.push({ 
+              ...row, 
+              rowCount, 
+              hasRelationships, 
+              priority: filterResult.priority, 
+              reason: filterResult.reason 
+            });
+            filteredTables.push(row);
+          } else {
+            logger.debug(`Filtered out table ${row.TABLE_SCHEMA}.${row.TABLE_NAME}: ${filterResult.reason}`);
+          }
         } catch (error) {
           // Permission issue - can't access this table
           permissionWarnings.add(row.TABLE_SCHEMA);
@@ -114,12 +127,12 @@ export class MySQLProvider implements DatabaseProvider {
         logger.warn(`Skipping schema '${schema}' — insufficient permissions`);
       });
       
-      // Get unique schemas from all tables
-      const schemas = [...new Set(allTables
+      // Get unique schemas from filtered tables
+      const schemas = [...new Set(filteredTables
         .filter(row => row && row.TABLE_SCHEMA) // Filter out any undefined/null entries
         .map(row => row.TABLE_SCHEMA)
       )];
-      logger.info(`Discovered ${allTables.length} tables across ${schemas.length} schemas`);
+      logger.info(`Discovered ${allTables.length} tables across ${schemas.length} schemas (after filtering)`);
 
       // If no tables were discovered due to permission issues, return empty schema
       if (schemas.length === 0) {
